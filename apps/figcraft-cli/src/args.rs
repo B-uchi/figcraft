@@ -204,13 +204,18 @@ pub struct CommandsArgs {
 /// --attach is confined by the app it attaches to: start that app with `figcraft --control PORT`
 /// and the same roots.
 #[derive(Args)]
+#[command(group(clap::ArgGroup::new("app").args(["attach", "project"])))]
 pub struct McpArgs {
     /// Attach to the app started with `figcraft --control PORT`; a bare port means 127.0.0.1:PORT.
     /// Refuses the automation roots
     #[arg(long, value_name = "PORT", value_parser = attach, conflicts_with_all = ["automation_read_root", "automation_write_root"])]
     pub attach: Option<String>,
+    /// Serve a project connected in the app's Developer Connect: DIR, or the nearest folder upwards
+    /// with a figcraft.connect.json. The server keeps running while the app is closed
+    #[arg(long, value_name = "DIR", num_args = 0..=1, conflicts_with_all = ["attach", "automation_read_root", "automation_write_root"])]
+    pub project: Option<Option<String>>,
     /// How long the attached app may take over each request, in seconds (1–600; default 60)
-    #[arg(long, value_name = "SECONDS", requires = "attach", value_parser = clap::value_parser!(u64).range(1..=600))]
+    #[arg(long, value_name = "SECONDS", requires = "app", value_parser = clap::value_parser!(u64).range(1..=600))]
     pub timeout: Option<u64>,
     #[command(flatten)]
     pub roots: RootArgs,
@@ -239,6 +244,20 @@ pub struct PublishArgs {
 #[derive(Subcommand)]
 pub enum ConnectCommand {
     Publish(ConnectPublishArgs),
+    Setup(ConnectDirArgs),
+    Status(ConnectDirArgs),
+}
+
+/// Set a project up for Developer Connect, or report on it
+///
+/// `setup` adds FigCraft to the project's .mcp.json (other servers stay as they are) and makes its
+/// figcraft.connect.json; running it again changes nothing. It gives no access: that is the app's
+/// to give, in its Developer Connect window. `status` changes nothing.
+#[derive(Args)]
+pub struct ConnectDirArgs {
+    /// The project folder (default: the nearest upwards with a figcraft.connect.json, else here)
+    #[arg(value_name = "DIR")]
+    pub dir: Option<String>,
 }
 
 /// Link a design file's components to their code as a figcraft.connect.json says, and save it
@@ -461,6 +480,10 @@ mod tests {
         assert_eq!(a.attach.as_deref(), Some("127.0.0.1:7979"));
         let Command::Mcp(a) = ok(&["mcp", "--attach=localhost:7979"]) else { panic!("mcp") };
         assert_eq!(a.attach.as_deref(), Some("localhost:7979"));
+        let Command::Mcp(a) = ok(&["mcp", "--project"]) else { panic!("mcp") };
+        assert_eq!(a.project, Some(None));
+        let Command::Mcp(a) = ok(&["mcp", "--project", "shop", "--timeout", "90"]) else { panic!("mcp") };
+        assert_eq!((a.project, a.timeout), (Some(Some("shop".to_owned())), Some(90)));
         let Command::Mcp(a) = ok(&["mcp", "--attach", "7979", "--timeout", "300"]) else { panic!("mcp") };
         assert_eq!(a.timeout, Some(300));
         let Command::Mcp(a) = ok(&["mcp", "--automation-read-root", "in", "--automation-write-root", "out"]) else { panic!("mcp") };
@@ -518,6 +541,8 @@ mod tests {
             (&["mcp", "--attach", "7979", "--timeout", "601"], ValueValidation),
             (&["mcp", "--timeout", "300"], MissingRequiredArgument),
             (&["mcp", "--attach", "7979", "--automation-read-root", "."], ArgumentConflict),
+            (&["mcp", "--project", "--attach", "7979"], ArgumentConflict),
+            (&["mcp", "--project", "--automation-write-root", "."], ArgumentConflict),
             (&["mcp", "--automation-write-root"], InvalidValue),
             (&["mcp", "stray"], UnknownArgument),
             (&["convert", "a"], MissingRequiredArgument),

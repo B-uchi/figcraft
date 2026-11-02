@@ -391,3 +391,71 @@ fn an_unconfined_write_follows_a_symbolic_link() {
     assert!(written.starts_with(b"\x89PNG"), "the target holds the render, not the placeholder");
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// `connect setup` twice leaves the files as they were, and keeps a user's other servers.
+#[test]
+fn connect_setup_is_idempotent_and_keeps_other_servers() {
+    let d = tmp("connect-setup");
+    let mcp = d.join(".mcp.json");
+    std::fs::write(&mcp, "{\n  \"mcpServers\": {\n    \"zed\": { \"command\": \"z\" }\n  }\n}\n").unwrap();
+    let config = d.join("config");
+    let run = || bin().args(["connect", "setup"]).arg(&d).env("FIGCRAFT_CONFIG_DIR", &config).output().unwrap();
+    let first = run();
+    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    let (text, connect) = (std::fs::read_to_string(&mcp).unwrap(), std::fs::read_to_string(d.join("figcraft.connect.json")).unwrap());
+    assert!(text.contains("    \"zed\": { \"command\": \"z\" }"), "{text}");
+    assert!(text.contains("\"--project\""), "{text}");
+    let second = run();
+    assert!(String::from_utf8_lossy(&second.stdout).contains("already has FigCraft"));
+    assert_eq!(std::fs::read_to_string(&mcp).unwrap(), text);
+    assert_eq!(std::fs::read_to_string(d.join("figcraft.connect.json")).unwrap(), connect);
+}
+
+/// A broken `.mcp.json` is left alone and the reason is printed.
+#[test]
+fn connect_setup_refuses_a_broken_config() {
+    let d = tmp("connect-broken");
+    std::fs::write(d.join(".mcp.json"), "{oops").unwrap();
+    let out = bin().args(["connect", "setup"]).arg(&d).output().unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("valid JSON"));
+    assert_eq!(std::fs::read_to_string(d.join(".mcp.json")).unwrap(), "{oops");
+}
+
+/// `mcp --project` with no app starts, lists its tools, says what to do, and ends with its client.
+#[test]
+fn mcp_project_serves_without_an_app_and_exits_with_its_client() {
+    let d = tmp("connect-mcp");
+    let mut child = bin()
+        .args(["mcp", "--project"])
+        .arg(&d)
+        .env("FIGCRAFT_CONFIG_DIR", d.join("no-app"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for line in [
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"test"}}}"#,
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
+        r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"inspect_document","arguments":{}}}"#,
+    ] {
+        writeln!(stdin, "{line}").unwrap();
+    }
+    drop(stdin);
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success(), "closing stdin ends it cleanly");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("connection_status"));
+    assert!(text.contains("FigCraft isn't running"), "{text}");
+}
+
+/// `connect status` says when no app is reachable, with a failing exit code for scripts.
+#[test]
+fn connect_status_reports_no_app() {
+    let d = tmp("connect-status");
+    let out = bin().args(["connect", "status"]).arg(&d).env("FIGCRAFT_CONFIG_DIR", d.join("no-app")).output().unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("FigCraft isn't running"));
+}

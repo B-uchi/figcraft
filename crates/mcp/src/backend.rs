@@ -3,6 +3,7 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use base64::Engine as _;
@@ -20,6 +21,15 @@ pub trait Backend {
 
     /// Short human description ("headless", "attached to 127.0.0.1:7979").
     fn describe(&self) -> String;
+
+    /// The MCP client's name, as `initialize` gives it.
+    fn set_client(&mut self, _client: &str) {}
+
+    /// How this backend reaches a document now, for the `connection_status` tool. Asks again, so it
+    /// also reconnects.
+    fn connection(&mut self) -> Value {
+        json!({"mode": "headless", "connected": true})
+    }
 
     /// PNG bytes of the document: `ids` (in page coordinates, their union) or, when empty, the
     /// current page's content. The default goes through `ui.render`, the PNG coming back as data.
@@ -80,7 +90,18 @@ pub fn decode_data(v: &Value) -> Result<Vec<u8>, String> {
 /// 256 MiB as base64 (192 MiB PNGs); anything longer is refused without reading the rest.
 const MAX_REPLY: usize = 512 * 1024 * 1024;
 
-/// A running FigCraft app, reached through its loopback control port (`figcraft --control PORT`).
+/// A project an [`Attached`] backend reaches through whichever app has it connected.
+struct Project {
+    path: PathBuf,
+    /// Where discovery files are, when not the default.
+    dir: Option<PathBuf>,
+    client: String,
+    /// The app's last answer about the project.
+    info: Value,
+}
+
+/// A running FigCraft app, reached through its loopback control port (`figcraft --control PORT`),
+/// or found for a connected project (Developer Connect).
 pub struct Attached {
     addr: String,
     conn: Option<(BufReader<TcpStream>, TcpStream)>,
@@ -89,21 +110,37 @@ pub struct Attached {
     max_reply: usize,
     /// How long the app is asked to wait for each request; `None`: its own 60 s.
     timeout: Option<Duration>,
+    /// Set: `addr` isn't fixed, each connection finds the app again.
+    project: Option<Project>,
 }
 
 impl Attached {
     /// Connect to `addr` (e.g. `127.0.0.1:7979`), failing fast when nothing is listening.
     pub fn connect(addr: &str) -> std::io::Result<Self> {
-        let mut r = Self { addr: addr.to_string(), conn: None, next_id: 1, max_reply: MAX_REPLY, timeout: None };
+        let mut r = Self { addr: addr.to_string(), conn: None, next_id: 1, max_reply: MAX_REPLY, timeout: None, project: None };
         r.reconnect()?;
         Ok(r)
+    }
+
+    /// A backend for `project`, connecting when it is first needed: the app may open later, and
+    /// close and come back, and the server keeps serving meanwhile.
+    pub fn project(project: PathBuf) -> Self {
+        Self::project_in(project, None)
+    }
+
+    /// [`project`](Self::project) with the discovery files in `dir`.
+    pub fn project_in(path: PathBuf, dir: Option<PathBuf>) -> Self {
+        let project = Project { path, dir, client: String::new(), info: Value::Null };
+        Self { addr: String::new(), conn: None, next_id: 1, max_reply: MAX_REPLY, timeout: None, project: Some(project) }
     }
 
     /// Ask the app to wait up to `timeout` for each request instead of its 60 s (it caps this; an
     /// app from before this ignores it and answers within its 60 s), and read its answers as long.
     pub fn with_timeout(mut self, timeout: Duration) -> std::io::Result<Self> {
         self.timeout = Some(timeout);
-        self.reconnect()?;
+        if self.project.is_none() {
+            self.reconnect()?;
+        }
         Ok(self)
     }
 
@@ -116,15 +153,35 @@ impl Attached {
         &self.addr
     }
 
+    /// How long a reply may take: the app answers within its timeout; leave headroom.
+    fn read_timeout(&self) -> Duration {
+        self.timeout.unwrap_or(Duration::from_secs(60)).saturating_add(Duration::from_secs(30))
+    }
+
+    /// Connect to the app that has the project connected, reading its discovery file afresh.
+    fn relink(&mut self) -> std::io::Result<()> {
+        let wait = self.read_timeout();
+        let Some(p) = self.project.as_mut() else { return Err(std::io::Error::other("no project")) };
+        let client = if p.client.is_empty() { "AI agent" } else { p.client.as_str() };
+        let link = crate::connect::link(p.dir.as_deref(), &p.path, client).map_err(std::io::Error::other)?;
+        link.stream.set_read_timeout(Some(wait))?;
+        p.info = link.info;
+        self.addr = format!("127.0.0.1:{}", link.port);
+        self.conn = Some((link.reader, link.stream));
+        Ok(())
+    }
+
     fn reconnect(&mut self) -> std::io::Result<()> {
         self.conn = None;
+        if self.project.is_some() {
+            return self.relink();
+        }
         let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, format!("cannot resolve {}", self.addr));
         for sa in self.addr.to_socket_addrs()? {
             match TcpStream::connect_timeout(&sa, Duration::from_millis(800)) {
                 Ok(s) => {
                     s.set_nodelay(true).ok();
-                    // The app answers within its timeout; leave headroom.
-                    s.set_read_timeout(Some(self.timeout.unwrap_or(Duration::from_secs(60)).saturating_add(Duration::from_secs(30)))).ok();
+                    s.set_read_timeout(Some(self.read_timeout())).ok();
                     let read = s.try_clone()?;
                     self.conn = Some((BufReader::new(read), s));
                     return Ok(());
@@ -181,8 +238,11 @@ impl Backend for Attached {
         }
         let line = line.to_string();
         if self.conn.is_none() || self.stale() {
-            self.reconnect().map_err(|e| {
-                format!("FigCraft app at {} is not reachable: {e} (request was not sent; start it with `figcraft --control PORT`)", self.addr)
+            self.reconnect().map_err(|e| match &self.project {
+                Some(_) => format!("{e} (the request was not sent)"),
+                None => {
+                    format!("FigCraft app at {} is not reachable: {e} (request was not sent; start it with `figcraft --control PORT`)", self.addr)
+                }
             })?;
         }
         // A lost reply does not mean the app failed to apply the request.
@@ -206,7 +266,33 @@ impl Backend for Attached {
     }
 
     fn describe(&self) -> String {
-        format!("attached to the FigCraft app at {}", self.addr)
+        match &self.project {
+            Some(p) => format!("Developer Connect for the project {} (connection_status says whether the app is there)", p.path.display()),
+            None => format!("attached to the FigCraft app at {}", self.addr),
+        }
+    }
+
+    fn set_client(&mut self, client: &str) {
+        if let Some(p) = &mut self.project {
+            client.clone_into(&mut p.client);
+            // So the app shows the agent from the start. The app may not be there yet: calls say so.
+            let _ = self.reconnect();
+        }
+    }
+
+    fn connection(&mut self) -> Value {
+        let unusable = self.conn.is_none() || self.stale();
+        let problem = if unusable { self.reconnect().err().map(|e| e.to_string()) } else { None };
+        let Some(p) = &self.project else {
+            return json!({"mode": "attached", "address": self.addr, "connected": problem.is_none(), "problem": problem});
+        };
+        let (path, info) = (p.path.display().to_string(), p.info.clone());
+        if problem.is_some() {
+            return json!({"mode": "project", "path": path, "connected": false, "problem": problem});
+        }
+        let doc = self.call("document.inspect", json!({"depth": 0})).unwrap_or(Value::Null);
+        let selected = doc.get("selection").and_then(Value::as_array).map_or(0, Vec::len);
+        json!({"mode": "project", "path": path, "connected": true, "project": info["project"], "files": info["files"], "app": info["app"], "document": {"name": doc.get("name"), "selected": selected}})
     }
 }
 

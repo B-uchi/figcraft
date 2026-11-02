@@ -23,6 +23,8 @@ mod inspect_response_limit;
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod overlay_anchor;
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod project;
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod protocol;
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod screenshot_pixel_limit;

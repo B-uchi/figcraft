@@ -111,6 +111,7 @@ pub const TOOL_NAMES: &[&str] = &[
     "key",
     "type_text",
     "inspect_ui",
+    "connection_status",
     "wait_for_changes",
 ];
 
@@ -371,6 +372,13 @@ fn tools() -> Vec<Value> {
             true,
         ),
         tool(
+            "connection_status",
+            "Connection status",
+            "How this server reaches FigCraft now: whether the app is connected, the project (name, asset folder, code mappings), the folders files may be read and written in, and the open document with how many layers are selected. Try it again after opening the app: it reconnects.",
+            obj(json!({}), &[]),
+            true,
+        ),
+        tool(
             "wait_for_changes",
             "Wait for changes",
             "Wait for new comment events in the attached FigCraft app. Returns pending events immediately; otherwise waits up to `timeoutMs` (default 20000, max 25000). Call it again with the returned `cursor` to keep watching. Headless returns immediately (no other writer). Events carry a sequence number, kind, document and a small payload (for comments, the thread id).",
@@ -574,6 +582,7 @@ pub fn call_tool(b: &mut dyn Backend, name: &str, args: &Value) -> ToolResult {
         "type_text" => type_text(b, &a),
         "inspect_ui" => b.call("ui.inspect", json!({})).map(|v| ToolResult::json(&v)),
         "wait_for_changes" => wait_for_changes(b, &a),
+        "connection_status" => Ok(ToolResult::json(&b.connection())),
         other => Err(format!("unknown tool `{other}` (tools/list has: {})", TOOL_NAMES.join(", "))),
     };
     r.unwrap_or_else(ToolResult::error)
