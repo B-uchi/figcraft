@@ -1439,6 +1439,7 @@ fn prepared_save_cannot_enter_a_replacement(route: &str, save_as: bool, discard:
             params: json!({"command": "doc.switch", "params": {"index": other_index}, "window": 0}),
             reply,
             state: Default::default(),
+            roots: None,
         });
         Some(rx)
     } else {

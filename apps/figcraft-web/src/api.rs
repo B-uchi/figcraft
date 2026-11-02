@@ -124,7 +124,8 @@ fn send(method: &str, params: Value) -> Pin<Box<dyn Future<Output = Value>>> {
         n.get()
     });
     let gate = RequestGate::new();
-    QUEUE.with(|q| q.borrow_mut().push(ControlRequest { id: json!(id), method: method.to_string(), params, reply, state: gate.clone() }));
+    QUEUE
+        .with(|q| q.borrow_mut().push(ControlRequest { id: json!(id), method: method.to_string(), params, reply, state: gate.clone(), roots: None }));
     CTX.with(|c| {
         if let Some(ctx) = c.borrow().as_ref() {
             ctx.request_repaint();

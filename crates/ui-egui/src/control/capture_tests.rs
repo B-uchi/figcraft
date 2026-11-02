@@ -15,7 +15,14 @@ use crate::layers_drag_tests::Ui;
 /// Queue a `ui.screenshot` request in the test app and return its reply receiver.
 fn push(u: &mut Ui, id: u64, params: serde_json::Value) -> std::sync::mpsc::Receiver<ControlReply> {
     let (tx, rx) = std::sync::mpsc::channel();
-    u.app.control_queue.push(ControlRequest { id: json!(id), method: "ui.screenshot".into(), params, reply: tx, state: Default::default() });
+    u.app.control_queue.push(ControlRequest {
+        id: json!(id),
+        method: "ui.screenshot".into(),
+        params,
+        reply: tx,
+        state: Default::default(),
+        roots: None,
+    });
     rx
 }
 
@@ -553,6 +560,7 @@ fn push_input(u: &mut Ui, id: u64) -> std::sync::mpsc::Receiver<ControlReply> {
         params: json!({"events": [{"move": [10.0, 10.0]}]}),
         reply: tx,
         state: Default::default(),
+        roots: None,
     });
     rx
 }
@@ -625,6 +633,7 @@ fn injected_text_lands_once_across_a_discarded_sizing_pass() {
         params: json!({"events": [{"text": "abc"}]}),
         reply: tx,
         state: Default::default(),
+        roots: None,
     });
     u.frame(vec![]);
     let events = crate::windows::take_input(&mut u.app, egui::ViewportId::ROOT);

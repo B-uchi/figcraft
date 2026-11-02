@@ -4,6 +4,29 @@ pub const MAX_CLIPBOARD_PNG_BYTES: usize = 256 * 1024 * 1024;
 
 /// Platform services the app crate provides (file dialogs, clipboard, URLs).
 pub trait Services {
+    /// This platform can listen for connected projects' agents (the desktop app can).
+    fn connect_available(&self) -> bool {
+        false
+    }
+    /// Start Developer Connect's listener (the port it is on, if already running).
+    fn connect_start(&mut self, _hub: std::sync::Arc<crate::connect::Hub>) -> Result<u16, String> {
+        Err(crate::i18n::tr("Developer Connect needs the desktop app.").to_string())
+    }
+    /// Stop that listener.
+    fn connect_stop(&mut self) {}
+    /// Set `project` up for `client` to start the server with `entry`.
+    fn connect_setup(
+        &self,
+        _project: &std::path::Path,
+        _client: &figcraft_engine::project_connect::Client,
+        _entry: &figcraft_engine::project_connect::McpEntry,
+    ) -> Result<figcraft_engine::project_connect::Setup, String> {
+        Err(crate::i18n::tr("Developer Connect needs the desktop app.").to_string())
+    }
+    /// How an MCP client starts the CLI on this computer.
+    fn connect_cli(&self) -> Option<figcraft_engine::project_connect::McpEntry> {
+        None
+    }
     fn pick_open(&mut self, _title: &str, _exts: &[&str]) -> DialogFuture {
         Box::pin(std::future::ready(None))
     }
