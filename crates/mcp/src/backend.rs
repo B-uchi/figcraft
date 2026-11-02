@@ -25,6 +25,16 @@ pub trait Backend {
     /// The MCP client's name, as `initialize` gives it.
     fn set_client(&mut self, _client: &str) {}
 
+    /// The connected project's asset folder, relative to the project.
+    fn asset_dir(&mut self) -> Option<String> {
+        None
+    }
+
+    /// `path` against the connected project, when there is one and it's relative.
+    fn project_path(&self, path: &str) -> String {
+        path.to_string()
+    }
+
     /// How this backend reaches a document now, for the `connection_status` tool. Asks again, so it
     /// also reconnects.
     fn connection(&mut self) -> Value {
@@ -265,6 +275,20 @@ impl Backend for Attached {
         match &self.project {
             Some(p) => format!("Developer Connect for the project {} (connection_status says whether the app is there)", p.path.display()),
             None => format!("attached to the FigCraft app at {}", self.addr),
+        }
+    }
+
+    fn asset_dir(&mut self) -> Option<String> {
+        if self.conn.is_none() {
+            let _ = self.reconnect();
+        }
+        self.project.as_ref()?.info["project"]["assetDir"].as_str().map(str::to_string)
+    }
+
+    fn project_path(&self, path: &str) -> String {
+        match &self.project {
+            Some(p) => p.path.join(path).to_string_lossy().into_owned(),
+            None => path.to_string(),
         }
     }
 

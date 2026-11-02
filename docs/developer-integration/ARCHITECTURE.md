@@ -214,11 +214,19 @@ serialisation, then separate it:
 Limits keep results usable: 2,000 layers and depth 32 by default, and the MCP tool halves the layer
 count until the result fits the client. A connected instance stops at its code.
 
+## Asset handoff
+
+`file.exportAssets` is in `crates/engine/src/dev/asset_handoff.rs`. It reuses `inspect.assets` to find
+assets and `export_file` to render, and writes only through `file_access`, so a project connection's
+confinement applies with no check of its own. The document model and format are unchanged.
+
+Names come from content rather than layer names, because a renamed layer must not leave a stale copy
+behind, and two layers using one image must share a file.
+
 ## Later phases
 
 | Phase | Design direction |
 |---|---|
-| 3 | Asset listing and original-bytes export into `assetDir`, named by content hash |
 | 4 | Optional link fields, `component_mapping` reads, imports applied on connection |
 | 5 | A documented annotation category for responsive instructions; frames grouped only when the designer says so |
 | 6 | Reference renders at explicit sizes, compared by the agent with the developer's browser tooling |

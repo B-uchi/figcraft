@@ -85,6 +85,14 @@ impl Backend for AsAgent<'_> {
         self.inner.connection()
     }
 
+    fn asset_dir(&mut self) -> Option<String> {
+        self.inner.asset_dir()
+    }
+
+    fn project_path(&self, path: &str) -> String {
+        self.inner.project_path(path)
+    }
+
     fn render_png(&mut self, ids: &[u64], scale: f64) -> Result<Vec<u8>, String> {
         self.inner.render_png(ids, scale)
     }

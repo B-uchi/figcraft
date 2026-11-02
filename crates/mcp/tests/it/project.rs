@@ -177,3 +177,31 @@ fn a_headless_server_reports_itself() {
     let mut s = Server::new(Box::new(Headless::new()));
     assert_eq!(status(&mut s)["mode"], "headless");
 }
+
+#[test]
+fn assets_go_to_the_projects_asset_folder() {
+    let (dir, project) = (folder("assets-dir"), folder("assets-project"));
+    let _app = FakeApp::start(&dir, 1, "t", &project);
+    let mut s = server(&project, &dir);
+    let star = call(&mut s, "create_node", json!({"type": "star", "width": 24, "height": 24, "props": {"fill": "#112233"}}));
+    let id = serde_json::from_str::<Value>(text(&star)).unwrap()["id"].clone();
+    let listed = call(&mut s, "export_assets", json!({"ids": [id], "dryRun": true}));
+    assert_eq!(listed["isError"], false, "{listed}");
+    assert!(!project.join("public").exists(), "a dry run writes nothing");
+    let done = call(&mut s, "export_assets", json!({"ids": [id]}));
+    let v: Value = serde_json::from_str(text(&done)).unwrap();
+    let path = v["assets"][0]["path"].as_str().unwrap();
+    assert!(path.starts_with(project.join("public/figcraft").to_str().unwrap()), "{v}");
+    assert!(Path::new(path).is_file());
+    let custom = call(&mut s, "export_assets", json!({"ids": [id], "dir": "static/art"}));
+    assert_eq!(custom["isError"], false, "{custom}");
+    assert!(project.join("static/art").is_dir());
+}
+
+#[test]
+fn a_headless_server_needs_a_folder_to_write_to() {
+    let mut s = Server::new(Box::new(Headless::new()));
+    assert_eq!(call(&mut s, "export_assets", json!({"dryRun": true}))["isError"], false);
+    let r = call(&mut s, "export_assets", json!({}));
+    assert!(text(&r).contains("pass `dir`"), "{r}");
+}

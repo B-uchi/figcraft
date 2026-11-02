@@ -125,9 +125,10 @@ pub const PROMPTS: &[PromptDef] = &[
 3. Implement every layer that has `code` with that snippet and its import. Never rebuild a connected component, and don't create a component the project already has.
 4. Use tokens over literal values: for each entry in a layer's `tokens`, use the variable's `codeSyntax`, or the project's matching token, before its resolved value.
 5. Treat `explicit` values as the specification. `derived` values are what layout produced at this size, so build the layout that produces them (auto layout, sizing) rather than hard-coding them.
-6. For each `unsupported` entry, get as close as the platform allows and list it in your report. Never drop it without saying so.
-7. Read `missing` and each layer's `annotations`. Don't invent behaviour the design doesn't state: if responsive behaviour isn't given, keep to what constraints, sizing and annotations say, and ask or report what you assumed.
-8. Finish with a report: files changed, components reused, what you approximated and what you assumed."#,
+6. Bring in real assets with export_assets: it writes them to the project and returns each file. Use those files, never screenshots or redrawn stand-ins. A `rendered` file isn't the original, and each entry in `adjustments` still has to be applied in code.
+7. For each `unsupported` entry, get as close as the platform allows and list it in your report. Never drop it without saying so.
+8. Read `missing` and each layer's `annotations`. Don't invent behaviour the design doesn't state: if responsive behaviour isn't given, keep to what constraints, sizing and annotations say, and ask or report what you assumed.
+9. Finish with a report: files changed, components reused, what you approximated and what you assumed."#,
         defaults: &[("target", "ask if it isn't clear")],
     },
 ];
