@@ -81,6 +81,10 @@ impl Backend for AsAgent<'_> {
         self.inner.describe()
     }
 
+    fn connection(&mut self) -> Value {
+        self.inner.connection()
+    }
+
     fn render_png(&mut self, ids: &[u64], scale: f64) -> Result<Vec<u8>, String> {
         self.inner.render_png(ids, scale)
     }
@@ -248,6 +252,7 @@ impl Server {
         match method {
             "initialize" => {
                 self.agent = client_name(params);
+                self.backend.set_client(&self.agent);
                 let asked = params.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL_VERSION);
                 let version = if SUPPORTED_VERSIONS.contains(&asked) { asked } else { PROTOCOL_VERSION };
                 Ok(json!({

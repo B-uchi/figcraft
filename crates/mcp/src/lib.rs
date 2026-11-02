@@ -8,12 +8,14 @@
 //!   methods itself (rendering with `figcraft-render`), so agents can design without a window.
 //! - [`Attached`] talks to a running desktop app through its loopback JSON-lines control channel
 //!   (`figcraft --control PORT`): one `{"id","method","params"}` line in, one
-//!   `{"id","ok","result"|"error"}` line out.
+//!   `{"id","ok","result"|"error"}` line out. For a project connected in the app's Developer
+//!   Connect it finds the app itself and stays up while the app is closed ([`connect`]).
 //!
 //! Entry points: [`Server::serve`] (stdio loop) and [`Server::handle_line`] (one message).
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod backend;
+pub mod connect;
 mod headless;
 mod prompts;
 mod resources;

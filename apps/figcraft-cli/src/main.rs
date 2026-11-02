@@ -4,6 +4,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod args;
+mod connect;
 mod files;
 mod perf;
 
@@ -91,9 +92,11 @@ fn run(cli: Cli) -> CliResult<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         // `--attach` conflicts with the roots: the app runs the commands, only its own roots can confine them.
-        Command::Mcp(a) => mcp(a.attach.as_deref(), a.timeout, roots_of(&a.roots)?),
+        Command::Mcp(a) => mcp(a.attach.as_deref(), a.project.as_ref().map(|p| p.as_deref()), a.timeout, roots_of(&a.roots)?),
         Command::Plugin { command: PluginCommand::Publish(a) } => publish_plugin(&a.folder, &a.server),
         Command::Connect { command: ConnectCommand::Publish(a) } => confined(&a.roots, || files::connect_publish(&a.file, &a.mappings, a.dry_run)),
+        Command::Connect { command: ConnectCommand::Setup(a) } => connect::setup(a.dir.as_deref()),
+        Command::Connect { command: ConnectCommand::Status(a) } => connect::status(a.dir.as_deref()),
         Command::Perf(a) => {
             let sizes: Vec<usize> = a.layers.into_iter().map(|n| n.clamp(10, 2_000_000)).collect();
             let instances: Vec<usize> = a.instances.into_iter().filter(|n| *n > 0).map(|n| n.min(100_000)).collect();
@@ -148,9 +151,21 @@ fn publish_plugin(folder: &str, server: &str) -> CliResult<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn mcp(attach: Option<&str>, timeout: Option<u64>, roots: Option<figcraft_engine::file_access::Roots>) -> CliResult<ExitCode> {
-    let backend: Box<dyn figcraft_mcp::Backend> = match attach {
-        Some(addr) => {
+fn mcp(
+    attach: Option<&str>,
+    project: Option<Option<&str>>,
+    timeout: Option<u64>,
+    roots: Option<figcraft_engine::file_access::Roots>,
+) -> CliResult<ExitCode> {
+    let backend: Box<dyn figcraft_mcp::Backend> = match (attach, project) {
+        (_, Some(dir)) => {
+            let b = figcraft_mcp::Attached::project(connect::project_dir(dir)?);
+            match timeout {
+                Some(secs) => Box::new(b.with_timeout(std::time::Duration::from_secs(secs)).map_err(|e| e.to_string())?),
+                None => Box::new(b),
+            }
+        }
+        (Some(addr), None) => {
             let no_app = |e: std::io::Error| format!("can't reach the FigCraft app at {addr}: {e} (start it with `figcraft --control PORT`)");
             let b = figcraft_mcp::Attached::connect(addr).map_err(no_app)?;
             match timeout {
@@ -158,7 +173,7 @@ fn mcp(attach: Option<&str>, timeout: Option<u64>, roots: Option<figcraft_engine
                 None => Box::new(b),
             }
         }
-        None => Box::new(figcraft_mcp::Headless::new()),
+        (None, None) => Box::new(figcraft_mcp::Headless::new()),
     };
     eprintln!("figcraft MCP server ({}) on stdio", backend.describe());
     if let Some(r) = &roots {
