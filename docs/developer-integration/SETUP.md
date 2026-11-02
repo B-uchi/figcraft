@@ -102,4 +102,5 @@ That channel has no token or per-project limits, so use Developer Connect for da
 - A design saved outside the project can't be saved by an agent; you save it in the app.
 - The app must be open. The server waits and reconnects without restarting the client.
 - With two FigCraft processes running, the one started last is tried first.
+- Flatpak needs a manual step and hasn't been tested, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md#flatpak).
 - An app started with `--automation-read-root` or `--automation-write-root` doesn't offer Developer Connect.

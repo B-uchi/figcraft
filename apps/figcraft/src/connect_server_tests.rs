@@ -50,8 +50,8 @@ impl Rig {
         serde_json::from_str(&line).unwrap_or(Value::Null)
     }
 
-    fn hello(&mut self, project: &Path) -> Value {
-        self.send(&json!({"id": 1, "method": "connect.hello", "params": {"token": TOKEN, "project": project, "client": "Claude Code"}}).to_string())
+    fn auth(&mut self, project: &Path) -> Value {
+        self.send(&json!({"id": 1, "method": "auth", "params": {"token": TOKEN, "project": project, "client": "Claude Code"}}).to_string())
     }
 
     fn call(&mut self, method: &str, params: Value) -> Value {
@@ -83,7 +83,7 @@ fn answer(queue: Queue) -> std::thread::JoinHandle<ControlRequest> {
 fn a_wrong_token_opens_nothing() {
     let dir = folder("token");
     let mut r = rig(&dir);
-    let reply = r.send(&json!({"id": 1, "method": "connect.hello", "params": {"token": "nope!!", "project": dir}}).to_string());
+    let reply = r.send(&json!({"id": 1, "method": "auth", "params": {"token": "nope!!", "project": dir}}).to_string());
     assert_eq!((reply["ok"].as_bool(), reply["error"].as_str()), (Some(false), Some("not authorized")));
     assert!(r.closed());
     assert!(r.hub.clients(&dir).is_empty());
@@ -110,7 +110,7 @@ fn any_other_first_method_is_refused_without_running() {
 fn a_project_that_isnt_connected_is_told_so() {
     let (dir, other) = (folder("granted"), folder("not-granted"));
     let mut r = rig(&dir);
-    let reply = r.hello(&other);
+    let reply = r.auth(&other);
     assert!(reply["error"].as_str().unwrap().contains("isn't connected"), "{reply}");
     assert!(r.closed());
 }
@@ -119,7 +119,7 @@ fn a_project_that_isnt_connected_is_told_so() {
 fn a_connected_project_gets_its_folder_and_nothing_else() {
     let dir = folder("info");
     let mut r = rig(&dir);
-    let reply = r.hello(&dir);
+    let reply = r.auth(&dir);
     assert_eq!(reply["ok"], true, "{reply}");
     assert_eq!(reply["result"]["project"]["name"], "shop");
     assert_eq!(reply["result"]["files"]["write"], json!([dir]));
@@ -131,7 +131,7 @@ fn a_connected_project_gets_its_folder_and_nothing_else() {
 fn requests_carry_the_projects_confinement_and_run_as_an_agent() {
     let dir = folder("scope");
     let mut r = rig(&dir);
-    r.hello(&dir);
+    r.auth(&dir);
     let ui = answer(r.queue.clone());
     assert_eq!(r.call("engine.execute", json!({"command": "doc.list"}))["result"], "done");
     let request = ui.join().unwrap();
@@ -141,10 +141,19 @@ fn requests_carry_the_projects_confinement_and_run_as_an_agent() {
 }
 
 #[test]
+fn a_second_auth_is_refused_and_the_connection_keeps_serving() {
+    let dir = folder("again");
+    let mut r = rig(&dir);
+    r.auth(&dir);
+    assert_eq!(r.call("auth", json!({"token": TOKEN}))["error"], "already authenticated");
+    assert_eq!(r.call("connect.info", json!({}))["ok"], true);
+}
+
+#[test]
 fn methods_that_operate_the_app_are_refused() {
     let dir = folder("methods");
     let mut r = rig(&dir);
-    r.hello(&dir);
+    r.auth(&dir);
     for method in ["app.quit", "ui.input", "ui.menu.invoke", "ui.set", "window.new", "window.focus", "no.such"] {
         let reply = r.call(method, json!({}));
         assert!(reply["error"].as_str().unwrap().contains("isn't available"), "{method}: {reply}");
@@ -156,7 +165,7 @@ fn methods_that_operate_the_app_are_refused() {
 fn a_screenshot_written_later_is_refused() {
     let dir = folder("shot");
     let mut r = rig(&dir);
-    r.hello(&dir);
+    r.auth(&dir);
     assert!(r.call("ui.screenshot", json!({"path": "/tmp/x.png"}))["error"].as_str().unwrap().contains("no `path`"));
     assert!(r.queue.lock().unwrap().is_empty());
 }
@@ -165,7 +174,7 @@ fn a_screenshot_written_later_is_refused() {
 fn disconnecting_the_project_ends_the_connection_at_once() {
     let dir = folder("revoke");
     let mut r = rig(&dir);
-    r.hello(&dir);
+    r.auth(&dir);
     r.hub.set_projects(&[]);
     assert!(r.closed());
     r.worker.join().unwrap();
@@ -176,7 +185,7 @@ fn disconnecting_the_project_ends_the_connection_at_once() {
 fn an_agent_that_goes_away_leaves_no_link_and_an_idle_one_stays() {
     let dir = folder("leave");
     let mut r = rig(&dir);
-    r.hello(&dir);
+    r.auth(&dir);
     assert_eq!(r.call("connect.info", json!({}))["ok"], true);
     let Rig { hub, client, reader, worker, .. } = r;
     client.shutdown(Shutdown::Both).unwrap();
@@ -189,7 +198,7 @@ fn an_agent_that_goes_away_leaves_no_link_and_an_idle_one_stays() {
 fn a_long_first_line_is_refused() {
     let dir = folder("long");
     let mut r = rig(&dir);
-    let reply = r.send(&"x".repeat(MAX_HELLO + 2));
+    let reply = r.send(&"x".repeat(MAX_AUTH + 2));
     assert_eq!(reply["error"], "not authorized");
 }
 

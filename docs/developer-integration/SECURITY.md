@@ -14,14 +14,15 @@ What Developer Connect protects, how, and where its limits are.
 
 | Caller | Outcome |
 |---|---|
-| A web page | Refused: its request's first line isn't a valid `connect.hello`, so the connection ends |
+| A web page | Refused: its request's first line isn't a valid `auth`, so the connection ends |
 | Another user on this computer | Refused: the token is in a file only you can read |
 | A previous run's token | Refused: every run makes a new 256-bit token |
 | Your own programs | **Allowed if they read the file.** See below |
 | Another computer | Not reachable: loopback only |
 
 The discovery file is `<settings folder>/Connect/<pid>.json`, mode `0600` in a `0700` folder on Unix.
-On Windows it is protected by the per-user `%APPDATA%` permissions, not by a mode of its own.
+On Windows it is protected by the per-user permissions of `%APPDATA%`, with no ACL of its own. A
+portable copy keeps it in its `config` folder, with whatever permissions that folder has.
 
 **Limit:** anything running as you can read the token, as it can read your other files. The token
 separates you from other users and from web pages. It doesn't defend against software you already

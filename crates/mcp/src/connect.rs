@@ -1,5 +1,5 @@
 //! Reaching a running app for a project: the discovery files it leaves
-//! (`figcraft_engine::project_connect`) and the `connect.hello` that opens a project connection.
+//! (`figcraft_engine::project_connect`) and the `auth` that opens a project connection.
 //! See `docs/developer-integration/ARCHITECTURE.md`.
 
 use std::io::{BufRead, BufReader, Read, Write};
@@ -7,19 +7,19 @@ use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use figcraft_engine::project_connect::{DISCOVERY_VERSION, Instance, instances_dir};
+use figcraft_engine::project_connect::{DISCOVERY_VERSION, Instance};
 use serde_json::{Value, json};
 
 /// Largest discovery file read.
 const MAX_FILE: u64 = 4096;
 /// Most discovery files tried.
 const MAX_FILES: usize = 64;
-/// Longest answer to `connect.hello`.
+/// Longest answer to `auth`.
 const MAX_REPLY: u64 = 1024 * 1024;
 /// How long a port gets to accept.
 const CONNECT_WAIT: Duration = Duration::from_millis(800);
-/// How long the app gets to answer `connect.hello`.
-const HELLO_WAIT: Duration = Duration::from_secs(5);
+/// How long the app gets to answer `auth`.
+const AUTH_WAIT: Duration = Duration::from_secs(5);
 
 /// What to say when no app is there.
 pub const NO_APP: &str = "FigCraft isn't running, or Developer Connect is off: open FigCraft, then Developer Connect (the ? button)";
@@ -55,13 +55,13 @@ fn instances(dir: &Path) -> Vec<Instance> {
         .collect()
 }
 
-/// `connect.hello` to one app. `Ok(Err(why))`: it answered, and said no.
-fn hello(i: &Instance, project: &Path, client: &str) -> std::io::Result<Result<Link, String>> {
+/// `auth` to one app. `Ok(Err(why))`: it answered, and said no.
+fn auth(i: &Instance, project: &Path, client: &str) -> std::io::Result<Result<Link, String>> {
     let stream = TcpStream::connect_timeout(&SocketAddr::from(([127, 0, 0, 1], i.port)), CONNECT_WAIT)?;
     stream.set_nodelay(true).ok();
-    stream.set_read_timeout(Some(HELLO_WAIT))?;
+    stream.set_read_timeout(Some(AUTH_WAIT))?;
     let mut reader = BufReader::new(stream.try_clone()?);
-    let line = json!({"id": 0, "method": "connect.hello", "params": {"token": i.token, "project": project.to_string_lossy(), "client": client}});
+    let line = json!({"id": "auth", "method": "auth", "params": {"token": i.token, "project": project.to_string_lossy(), "client": client}});
     (&stream).write_all(format!("{line}\n").as_bytes())?;
     let mut reply = Vec::new();
     (&mut reader).take(MAX_REPLY).read_until(b'\n', &mut reply)?;
@@ -73,13 +73,14 @@ fn hello(i: &Instance, project: &Path, client: &str) -> std::io::Result<Result<L
     Ok(Ok(Link { stream, reader, port: i.port, info }))
 }
 
-/// Connect to the first running app that has `project` connected, looking in `dir` (default: where
-/// apps leave their files). `Err` says what the person has to do.
+/// Connect to the first running app that has `project` connected, with its discovery files in `dir`
+/// (the app's settings folder decides that: `None` when there is none). `Err` says what the person
+/// has to do.
 pub fn link(dir: Option<&Path>, project: &Path, client: &str) -> Result<Link, String> {
-    let found = dir.map(Path::to_path_buf).or_else(instances_dir).map(|d| instances(&d)).unwrap_or_default();
+    let found = dir.map(instances).unwrap_or_default();
     let mut refused = None;
     for i in found {
-        match hello(&i, project, client) {
+        match auth(&i, project, client) {
             Ok(Ok(link)) => return Ok(link),
             Ok(Err(why)) => refused = Some(why),
             // A file a crash left, or an app that's going: the next may answer.

@@ -1,6 +1,6 @@
 //! Developer Connect's listener: a second control socket beside `--control`, started from the
-//! window on a free port. A connection must first say `connect.hello` with this run's token and a
-//! connected project; it then speaks the control protocol confined to that project
+//! window on a free port. A connection must first send `auth`, as the suite's other control channels
+//! ask, with this run's token and a connected project; it then speaks the control protocol confined to that project
 //! ([`control_server::Scope`]). The port and token are in a discovery file only this user can read,
 //! which goes when the app stops. See `docs/developer-integration/ARCHITECTURE.md`.
 
@@ -22,9 +22,9 @@ use crate::control_server::{self, CtxSlot, Queue, Scope};
 /// Most agents connected at once.
 const MAX_LINKS: usize = 8;
 /// How long a new connection has to introduce itself.
-const HELLO_WAIT: Duration = Duration::from_secs(5);
-/// Longest `connect.hello` line.
-const MAX_HELLO: usize = 64 * 1024;
+const AUTH_WAIT: Duration = Duration::from_secs(5);
+/// Longest `auth` line.
+const MAX_AUTH: usize = 64 * 1024;
 /// How long a discovery file's port gets to answer before the file counts as left by a crash.
 const STALE_WAIT: Duration = Duration::from_millis(200);
 /// How long a request waits for the UI, as on `--control`.
@@ -55,7 +55,9 @@ impl Launcher {
         if let Some(r) = &self.running {
             return Ok(r.port);
         }
-        let dir = project_connect::instances_dir().ok_or("no folder for the app's settings: set HOME or FIGCRAFT_CONFIG_DIR")?;
+        let dir = crate::services::config_dir()
+            .ok_or("no folder for the app's settings: set HOME or FIGCRAFT_CONFIG_DIR")?
+            .join(project_connect::INSTANCES_FOLDER);
         let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|e| format!("can't open a local port: {e}"))?;
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
         let token = new_token()?;
@@ -154,13 +156,13 @@ fn accept(listener: &TcpListener, token: &str, stop: &AtomicBool, hub: &Arc<Hub>
     }
 }
 
-/// The first line, within [`HELLO_WAIT`] in all however slowly it comes. `None`: too slow, too long
+/// The first line, within [`AUTH_WAIT`] in all however slowly it comes. `None`: too slow, too long
 /// or not there.
-fn read_hello(reader: &mut BufReader<TcpStream>) -> Option<Value> {
+fn read_auth(reader: &mut BufReader<TcpStream>) -> Option<Value> {
     let since = Instant::now();
     let mut line = Vec::new();
     loop {
-        let left = HELLO_WAIT.checked_sub(since.elapsed()).filter(|d| !d.is_zero())?;
+        let left = AUTH_WAIT.checked_sub(since.elapsed()).filter(|d| !d.is_zero())?;
         reader.get_ref().set_read_timeout(Some(left)).ok()?;
         let chunk = reader.fill_buf().ok()?;
         if chunk.is_empty() {
@@ -170,7 +172,7 @@ fn read_hello(reader: &mut BufReader<TcpStream>) -> Option<Value> {
         let used = end.map_or(chunk.len(), |n| n + 1);
         line.extend_from_slice(chunk.get(..used)?);
         reader.consume(used);
-        if line.len() > MAX_HELLO {
+        if line.len() > MAX_AUTH {
             return None;
         }
         if end.is_some() {
@@ -180,10 +182,10 @@ fn read_hello(reader: &mut BufReader<TcpStream>) -> Option<Value> {
 }
 
 /// The handshake: `Ok` with the project and client it names, `Err` with what it is told.
-fn check_hello(hello: &Value, token: &str) -> Result<(String, String), String> {
-    let p = hello.get("params");
+fn check_auth(auth: &Value, token: &str) -> Result<(String, String), String> {
+    let p = auth.get("params");
     let field = |k: &str| p.and_then(|p| p.get(k)).and_then(Value::as_str);
-    if hello.get("method").and_then(Value::as_str) != Some("connect.hello") || !field("token").is_some_and(|t| same(t, token)) {
+    if auth.get("method").and_then(Value::as_str) != Some("auth") || !field("token").is_some_and(|t| same(t, token)) {
         return Err("not authorized".into());
     }
     let project = field("project").ok_or("`project` required")?;
@@ -204,12 +206,12 @@ fn serve(stream: TcpStream, token: &str, hub: &Hub, queue: Queue, ctx: CtxSlot, 
     stream.set_write_timeout(Some(TIMEOUT))?;
     let mut out = stream.try_clone()?;
     let mut reader = BufReader::new(stream.try_clone()?);
-    let Some(hello) = read_hello(&mut reader) else {
+    let Some(auth) = read_auth(&mut reader) else {
         return writeln!(out, "{}", json!({"id": null, "ok": false, "error": "not authorized"}));
     };
-    let id = hello.get("id").cloned().unwrap_or(Value::Null);
+    let id = auth.get("id").cloned().unwrap_or(Value::Null);
     let linked =
-        check_hello(&hello, token).and_then(|(project, client)| hub.link(&project, &client, Box::new(move || drop(stream.shutdown(Shutdown::Both)))));
+        check_auth(&auth, token).and_then(|(project, client)| hub.link(&project, &client, Box::new(move || drop(stream.shutdown(Shutdown::Both)))));
     let ticket = match linked {
         Ok(ticket) => ticket,
         Err(error) => return writeln!(out, "{}", json!({"id": id, "ok": false, "error": error})),

@@ -26,7 +26,7 @@ Claude Code                                  │ read by the CLI                
    │ stdio JSON-RPC                          │                                    │ queue, per-request roots
    ▼                                         │                                    │
  figcraft-cli mcp --project ─────────────────┘                                    │
-   └─ figcraft_mcp::Server ─ Attached ─ connect.hello ─ TCP loopback ─ lines ─────┘
+   └─ figcraft_mcp::Server ─ Attached ─ auth ─ TCP loopback ─ lines ──────────────┘
 ```
 
 ## Connection lifecycle
@@ -37,7 +37,7 @@ App starts ── prefs.connect.enabled? ── yes ─▶ listen, write discove
 Client starts figcraft-cli mcp --project
    finds the project: nearest folder upwards with figcraft.connect.json, else the working folder
    initialize ─▶ reads discovery files, newest first
-       each: TCP connect ─ connect.hello {token, project, client}
+       each: TCP connect ─ auth {token, project, client}
          ok  ─▶ project connection: confined to the project, shows in the window
          no  ─▶ next file
        none ─▶ server keeps running; each call says what to do, and tries again
@@ -54,12 +54,13 @@ App crashes  ─▶ file stays; its port refuses, so it's skipped, and removed a
 The first line on a Developer Connect socket has 5 seconds to arrive and at most 64 KiB:
 
 ```json
-{"id":0,"method":"connect.hello","params":{"token":"<64 hex>","project":"/abs/path","client":"Claude Code"}}
-{"id":0,"ok":true,"result":{"project":{"name":"shop","assetDir":"public/figcraft"},"files":{"read":["…"],"write":["…"]},"app":{"version":"0.7.0"}}}
+{"id":"auth","method":"auth","params":{"token":"<64 hex>","project":"/abs/path","client":"Claude Code"}}
+{"id":"auth","ok":true,"result":{"project":{"name":"shop","assetDir":"public/figcraft"},"files":{"read":["…"],"write":["…"]},"app":{"version":"0.7.0"}}}
 ```
 
-Anything else ends the connection, so an HTTP request from a web page stops at its first line, as
-on `--control`. After it the socket speaks the ordinary control protocol, with three differences:
+This is the first-frame `auth` PhotoCraft's control channel ships, with `project` and `client`
+added. Anything else ends the connection, so an HTTP request from a web page stops at its first
+line, as on `--control`. A later `auth` answers `already authenticated`. After it the socket speaks the ordinary control protocol, with three differences:
 
 | Difference | Why |
 |---|---|
@@ -82,6 +83,19 @@ can't publish a document from a project connection.
 | Require a token on `--control` | Breaks existing scripts and tests |
 | **A second listener sharing the queue and protocol** | Chosen: additive, and scripts keep working |
 | HTTP MCP transport in the app | A new service, and the brief prefers stdio |
+
+## Relation to control-channel authentication
+
+Issue #480 and PRs #500 and #1473 propose authenticating `--control`. Maintainers are holding them
+for a suite-wide decision, because they change a protocol all the Craft apps share. Developer Connect
+doesn't depend on that decision and doesn't pre-empt it: `--control` stays exactly as it is, and the
+token applies only to a new, opt-in listener.
+
+It takes the review of those PRs into account: the listener binds before the discovery file is
+written, a failed write stops it (fail closed), the token is new each run and compared in constant
+time, the first line is bounded in size and in total time, and the folder comes from craft-settings.
+If the suite settles on a token file, this listener and `--attach` can adopt it, and the discovery
+file is the only piece that would change.
 
 ## Project configuration
 

@@ -1801,6 +1801,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "clap_mangen",
+ "craft-settings",
  "figcraft-doc",
  "figcraft-engine",
  "figcraft-format",
