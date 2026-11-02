@@ -81,6 +81,15 @@ an error, and so is a `document` naming a file behind the tab in front on any ot
 (`ui.screenshot`, `ui.input`, `ui.key`… act on what the window shows). `doc.list` includes each file's
 `path` only when the call names no `agent`: an AI agent's calls (MCP sets `agent`) get ids and names.
 
+## Developer Connect
+
+The window's Developer Connect opens a second listener on a free loopback port, for project
+connections from `figcraft-cli mcp --project`. It takes the same lines, after a first
+`connect.hello {token, project, client?}` line with the token from the run's discovery file. That
+connection is confined to the project, reaches no network and has only the methods the MCP tools
+use, plus `connect.info {}` (what `connect.hello` answered, afresh). See
+[the architecture](developer-integration/ARCHITECTURE.md). `--control` is unchanged by this.
+
 ## Confining file access
 
 ```sh

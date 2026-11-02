@@ -17,6 +17,8 @@ The server lives in `crates/mcp` (`figcraft-mcp`) and is started by the CLI:
 | `figcraft-cli mcp` | **Headless**: an in-process engine session with one untitled document. No window; renders with the CPU renderer. |
 | `figcraft-cli mcp --attach <port>` | **Attached**: drives a running FigCraft app through its control channel (`figcraft --control <port>`). The user sees every change live. |
 
+| `figcraft-cli mcp --project [DIR]` | **Developer Connect**: finds the running app that has the project connected, with no port to configure, and keeps serving while the app is closed. See [Developer Connect](developer-integration/SETUP.md). |
+
 `--attach` also takes `host:port`. The control channel only listens on 127.0.0.1. The app takes up
 to 60 s over each request; `--timeout SECONDS` (1–600) raises that for a client that sends big
 batches: `figcraft-cli mcp --attach 7979 --timeout 300`. Headless has no such limit.
@@ -151,6 +153,9 @@ Or in a project's `.mcp.json`:
   }
 }
 ```
+
+For a project you work in, [Developer Connect](developer-integration/SETUP.md) does this for you from
+the app: nothing to configure by hand, no port, and agents kept to the project's folder.
 
 ### Claude Desktop
 
@@ -381,6 +386,7 @@ a later step can use `{"$step": 0, "field": "ids/0"}` to target the first match.
 | `key {key, shift, alt, cmd}` | A shortcut or key as if typed on the canvas (every default shortcut, tool keys, Escape, Delete, arrows, number keys for opacity, arrows that pan the view when nothing is selected; while editing text, the text shortcuts and then text editing keys). Keys are names like `A`, `0`, `Enter`, `ArrowLeft`, `=`, `/`, or egui's (`Plus`, `Questionmark`); `cmd` is Cmd on macOS and Ctrl elsewhere. |
 | `type_text {text, id?}` | Type into the text being edited, or replace the contents of text layer `id`. |
 | `inspect_ui {}` | Tool, view and status (and panels, timings and the app's `windows` when attached). |
+| `connection_status {}` | How the server reaches FigCraft now: `mode` (`headless`, `attached`, `project`), `connected`, the `problem` when it isn't, and for a project its `project` (`name`, `assetDir`, `links`), the `files` folders it may read and write and the `document` in front (`name`, `selected`). Asks again, so it also reconnects. |
 | `wait_for_changes {after?, timeoutMs?, topics?, limit?}` | Wait for new comment events in the attached app; returns pending events at once, else waits up to `timeoutMs` (default 20 s, max 25 s). Pass the returned `cursor` back to keep watching. Headless returns immediately. |
 
 ### Compact layer trees
