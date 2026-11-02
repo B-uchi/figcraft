@@ -129,7 +129,8 @@ pub const PROMPTS: &[PromptDef] = &[
 7. For each `unsupported` entry, get as close as the platform allows and list it in your report. Never drop it without saying so.
 8. Read `missing` and each layer's `annotations`. Don't invent behaviour the design doesn't state: if responsive behaviour isn't given, keep to what constraints, sizing and annotations say, and ask or report what you assumed.
 9. For other screen sizes follow `responsive`: its `versions` are designs for each size, and its `rules` are the designer's instructions. If `responsive.explicit` is false, say so rather than inventing breakpoints.
-10. Finish with a report: files changed, components reused, what you approximated and what you assumed."#,
+10. If a browser tool is available and the developer's app runs, check your work: compare_design gives the `viewport`; size the browser to it, capture the page to a file in the project, compare, fix the layers it names, and repeat. Delete the captures afterwards.
+11. Finish with a report: files changed, components reused, what you approximated and what you assumed."#,
         defaults: &[("target", "ask if it isn't clear")],
     },
 ];
