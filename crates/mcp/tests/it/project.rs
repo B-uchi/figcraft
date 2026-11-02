@@ -1,5 +1,5 @@
 //! Developer Connect from the MCP side: `Attached::project` against a fake app that leaves a
-//! discovery file and asks for `connect.hello`, as the desktop app does.
+//! discovery file and asks for `auth`, as the desktop app does.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -89,7 +89,7 @@ impl FakeApp {
 }
 
 fn server(project: &Path, dir: &Path) -> Server {
-    let mut s = Server::new(Box::new(Attached::project_in(project.to_path_buf(), Some(dir.to_path_buf()))));
+    let mut s = Server::new(Box::new(Attached::project(project.to_path_buf(), Some(dir.to_path_buf()))));
     let init =
         json!({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {"clientInfo": {"name": "probe", "title": "Claude Code"}}}).to_string();
     let r: Value = serde_json::from_str(&s.handle_line(&init).unwrap()).unwrap();

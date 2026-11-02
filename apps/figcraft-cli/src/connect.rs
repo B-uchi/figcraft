@@ -8,6 +8,15 @@ use figcraft_engine::project_connect::{self, CLIENTS, Change, McpEntry};
 
 use crate::{CliError, CliResult};
 
+/// Where running apps leave their discovery files: the app's settings folder, by the suite's rules
+/// (`FIGCRAFT_CONFIG_DIR`, a portable copy's folder, else the platform's).
+pub fn instances_dir() -> Option<PathBuf> {
+    use craft_settings::{Location, Portable, Probe, Rule};
+    let resolved = craft_settings::paths::resolve("FigCraft", &Portable::DEFAULT, &Location::Auto, &Probe::default());
+    let dir = resolved.dir.filter(|_| !matches!(resolved.rule, Rule::Fallback))?;
+    Some(dir.join(project_connect::INSTANCES_FOLDER))
+}
+
 /// The folder `dir` names, else the nearest upwards with a connect file, else here, resolved.
 pub fn project_dir(dir: Option<&str>) -> CliResult<PathBuf> {
     let here = std::env::current_dir().map_err(|e| CliError::Failed(format!("the working folder: {e}")))?;
@@ -63,7 +72,7 @@ fn report(project: &Path) -> bool {
 pub fn status(dir: Option<&str>) -> CliResult<ExitCode> {
     let project = project_dir(dir)?;
     let healthy = report(&project);
-    match figcraft_mcp::connect::link(None, &project, "figcraft-cli connect status") {
+    match figcraft_mcp::connect::link(instances_dir().as_deref(), &project, "figcraft-cli connect status") {
         Ok(link) => {
             println!("app:       connected on 127.0.0.1:{}", link.port);
             Ok(if healthy { ExitCode::SUCCESS } else { ExitCode::from(1) })

@@ -55,7 +55,7 @@ pub(crate) struct Scope<'a> {
 }
 
 impl Scope<'_> {
-    /// What `connect.hello` and `connect.info` answer.
+    /// What `auth` and `connect.info` answer.
     pub fn info(&self) -> Value {
         json!({"project": project_connect::info(&self.path, &self.name), "files": self.roots.to_json(), "app": {"version": env!("CARGO_PKG_VERSION")}})
     }
@@ -251,6 +251,10 @@ pub(crate) fn serve_lines(
                 if let Some(scope) = scope {
                     if method == "connect.info" {
                         writeln!(out, "{}", json!({"id": id, "ok": true, "result": scope.info()}))?;
+                        continue;
+                    }
+                    if method == "auth" {
+                        writeln!(out, "{}", json!({"id": id, "ok": false, "error": "already authenticated"}))?;
                         continue;
                     }
                     if let Some(error) = scope.refuses(&method, &params) {

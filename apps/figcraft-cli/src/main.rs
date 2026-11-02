@@ -159,7 +159,7 @@ fn mcp(
 ) -> CliResult<ExitCode> {
     let backend: Box<dyn figcraft_mcp::Backend> = match (attach, project) {
         (_, Some(dir)) => {
-            let b = figcraft_mcp::Attached::project(connect::project_dir(dir)?);
+            let b = figcraft_mcp::Attached::project(connect::project_dir(dir)?, connect::instances_dir());
             match timeout {
                 Some(secs) => Box::new(b.with_timeout(std::time::Duration::from_secs(secs)).map_err(|e| e.to_string())?),
                 None => Box::new(b),

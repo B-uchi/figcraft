@@ -93,7 +93,7 @@ const MAX_REPLY: usize = 512 * 1024 * 1024;
 /// A project an [`Attached`] backend reaches through whichever app has it connected.
 struct Project {
     path: PathBuf,
-    /// Where discovery files are, when not the default.
+    /// Where apps leave their discovery files.
     dir: Option<PathBuf>,
     client: String,
     /// The app's last answer about the project.
@@ -122,14 +122,10 @@ impl Attached {
         Ok(r)
     }
 
-    /// A backend for `project`, connecting when it is first needed: the app may open later, and
-    /// close and come back, and the server keeps serving meanwhile.
-    pub fn project(project: PathBuf) -> Self {
-        Self::project_in(project, None)
-    }
-
-    /// [`project`](Self::project) with the discovery files in `dir`.
-    pub fn project_in(path: PathBuf, dir: Option<PathBuf>) -> Self {
+    /// A backend for the project at `path`, with apps' discovery files in `dir`, connecting when it
+    /// is first needed: the app may open later, and close and come back, and the server keeps
+    /// serving meanwhile.
+    pub fn project(path: PathBuf, dir: Option<PathBuf>) -> Self {
         let project = Project { path, dir, client: String::new(), info: Value::Null };
         Self { addr: String::new(), conn: None, next_id: 1, max_reply: MAX_REPLY, timeout: None, project: Some(project) }
     }

@@ -32,6 +32,19 @@ Start with `figcraft-cli connect status` in the project, and ask the agent to ru
 - **Control channel "Didn't open":** another program holds the `--control` port. This doesn't affect
   Developer Connect, which picks a free port.
 
+## Flatpak
+
+The sandboxed app keeps its settings in `~/.var/app/ai.storyteller.figcraft/config/FigCraft/`, which a
+CLI on the host doesn't look in. Add this to the server's entry in `.mcp.json`, in the file on that
+computer:
+
+```json
+"env": {"FIGCRAFT_CONFIG_DIR": "/home/you/.var/app/ai.storyteller.figcraft/config/FigCraft"}
+```
+
+The folder picker hands the app a portal path, and agents can reach only folders the sandbox can
+see. This setup hasn't been tested yet.
+
 ## A crash left things behind
 
 Nothing needs cleaning up. The next start removes old discovery files, and their tokens no longer work.

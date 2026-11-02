@@ -23,6 +23,8 @@ pub const CONNECT_FILE: &str = "figcraft.connect.json";
 pub const SERVER_NAME: &str = "figcraft";
 /// Where exported assets go when the project doesn't say.
 pub const DEFAULT_ASSET_DIR: &str = "public/figcraft";
+/// The folder of discovery files, in the app's settings folder.
+pub const INSTANCES_FOLDER: &str = "Connect";
 /// The discovery file's format version.
 pub const DISCOVERY_VERSION: u64 = 1;
 /// Largest configuration file read (bytes).
@@ -49,7 +51,7 @@ pub struct Client {
 /// The clients setup knows.
 pub const CLIENTS: &[Client] = &[Client { id: "claude-code", label: "Claude Code", config: ".mcp.json", servers_key: "mcpServers" }];
 
-/// What a running app leaves for the CLI: `<config>/Connect/<pid>.json`, readable by its user only.
+/// What a running app leaves for the CLI in [`INSTANCES_FOLDER`], readable by its user only.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Instance {
     pub version: u64,
@@ -57,22 +59,6 @@ pub struct Instance {
     pub port: u16,
     pub token: String,
     pub app_version: String,
-}
-
-/// The folder discovery files live in. `FIGCRAFT_CONFIG_DIR` moves it with the app's settings (set
-/// but empty: none). This is a meeting point of one user's processes, so a portable copy's settings
-/// folder doesn't matter here: the app and the CLI only have to agree.
-pub fn instances_dir() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("FIGCRAFT_CONFIG_DIR") {
-        return (!dir.is_empty()).then(|| PathBuf::from(dir).join("Connect"));
-    }
-    #[cfg(target_os = "macos")]
-    let base = std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support"));
-    #[cfg(target_os = "windows")]
-    let base = std::env::var_os("APPDATA").map(PathBuf::from);
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    let base = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")));
-    base.map(|b| b.join("FigCraft").join("Connect"))
 }
 
 // ------------------------------------------------------------------ starting the CLI
