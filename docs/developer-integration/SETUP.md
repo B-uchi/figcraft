@@ -32,6 +32,13 @@ manual steps below.
 
 Ask the agent to run `connection_status` to see what it can reach.
 
+## Implement a design
+
+Select a frame in FigCraft, then ask the agent to implement it. In Claude Code the
+`implement_design` prompt does this in one step: run `/mcp__figcraft__implement_design`. The agent
+reads the selection with `design_context`, which returns real measurements, tokens, components and
+what the design doesn't specify, as described in [the MCP guide](../mcp.md#design-context).
+
 ## What connecting does
 
 | In | Change |

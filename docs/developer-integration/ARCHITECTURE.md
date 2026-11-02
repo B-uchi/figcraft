@@ -198,11 +198,26 @@ Changes beyond ordinary feature code:
 | `getrandom` as a direct dependency of the app | Already in the tree through `collab-net` |
 | `figcraft-cli` is run with `mcp --help` during setup | Setup starts a program found on `PATH`, to check it has `--project` |
 
+## Design context
+
+`inspect.designContext` is one read-only command in `crates/engine/src/dev/design_context.rs`, so the
+CLI, the control channel and MCP share it. It adds no document state. Tree layers reuse `get_node`'s
+serialisation, then separate it:
+
+| Part | Rule |
+|---|---|
+| `explicit` | What `get_node` reports, less what follows |
+| `derived` | `absoluteBounds`, `rotation`, `gridCell`; `x` and `y` in an auto layout flow; a width or height that Hug, Fill or auto-sizing text decides |
+| `unsupported` | A short table of what CSS can't say directly. Only well-known limits are listed, and the value stays in `explicit` |
+| `missing` | What the file doesn't hold, such as breakpoints, or a variable it no longer has |
+
+Limits keep results usable: 2,000 layers and depth 32 by default, and the MCP tool halves the layer
+count until the result fits the client. A connected instance stops at its code.
+
 ## Later phases
 
 | Phase | Design direction |
 |---|---|
-| 2 | `design_context {ids?}`: selection by default, tree with tokens joined, and each value marked explicit, derived or unsupported |
 | 3 | Asset listing and original-bytes export into `assetDir`, named by content hash |
 | 4 | Optional link fields, `component_mapping` reads, imports applied on connection |
 | 5 | A documented annotation category for responsive instructions; frames grouped only when the designer says so |

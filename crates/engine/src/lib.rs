@@ -65,6 +65,7 @@ pub use dev::annotations;
 pub use dev::code_connect;
 pub use dev::codegen;
 pub use dev::component_codegen;
+pub use dev::design_context;
 pub use dev::dev_measurements;
 pub use dev::dev_resources;
 pub use dev::devcompare;
@@ -277,6 +278,8 @@ mod dark_page_text_tests;
 mod dash_cap_tests;
 #[cfg(test)]
 mod datafill_tests;
+#[cfg(test)]
+mod design_context_tests;
 #[cfg(test)]
 mod design_paste_tests;
 #[cfg(test)]
