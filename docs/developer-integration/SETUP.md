@@ -39,6 +39,10 @@ Select a frame in FigCraft, then ask the agent to implement it. In Claude Code t
 reads the selection with `design_context`, which returns real measurements, tokens, components and
 what the design doesn't specify, as described in [the MCP guide](../mcp.md#design-context).
 
+- Agents write real assets to the project with `export_assets`.
+- Map design components to your code so they're reused: [CODE_CONNECT.md](CODE_CONNECT.md).
+- State what should happen at other sizes: [RESPONSIVE.md](RESPONSIVE.md).
+
 ## What connecting does
 
 | In | Change |

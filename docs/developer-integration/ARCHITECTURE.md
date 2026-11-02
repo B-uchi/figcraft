@@ -223,9 +223,15 @@ confinement applies with no check of its own. The document model and format are 
 Names come from content rather than layer names, because a renamed layer must not leave a stale copy
 behind, and two layers using one image must share a file.
 
-## Later phases
+## Responsive context and verification
 
-| Phase | Design direction |
-|---|---|
-| 5 | A documented annotation category for responsive instructions; frames grouped only when the designer says so |
-| 6 | Reference renders at explicit sizes, compared by the agent with the developer's browser tooling |
+`crates/engine/src/dev/responsive.rs` and `visual_compare.rs` add no document state of their own.
+Versions are layer data, rules are annotations, and both read through `design_context`.
+`inspect.compare` uses `render_node` and the image decoder the renderer already has, and reads captures
+through `file_access`, so a project connection can only compare files in its project.
+
+The comparison reports per layer because that is what an agent can act on. Each layer claims the pixels
+of its box, deepest first, so one difference appears once.
+
+A file has no way to hold a breakpoint, and adding one would change the format, so that stays out of
+scope until maintainers want it.

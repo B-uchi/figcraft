@@ -9,4 +9,5 @@ pub mod dev_resources;
 pub mod devcompare;
 pub mod devinspect;
 pub mod project_connect;
+pub mod responsive;
 pub mod tailwind;

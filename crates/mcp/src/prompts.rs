@@ -128,7 +128,8 @@ pub const PROMPTS: &[PromptDef] = &[
 6. Bring in real assets with export_assets: it writes them to the project and returns each file. Use those files, never screenshots or redrawn stand-ins. A `rendered` file isn't the original, and each entry in `adjustments` still has to be applied in code.
 7. For each `unsupported` entry, get as close as the platform allows and list it in your report. Never drop it without saying so.
 8. Read `missing` and each layer's `annotations`. Don't invent behaviour the design doesn't state: if responsive behaviour isn't given, keep to what constraints, sizing and annotations say, and ask or report what you assumed.
-9. Finish with a report: files changed, components reused, what you approximated and what you assumed."#,
+9. For other screen sizes follow `responsive`: its `versions` are designs for each size, and its `rules` are the designer's instructions. If `responsive.explicit` is false, say so rather than inventing breakpoints.
+10. Finish with a report: files changed, components reused, what you approximated and what you assumed."#,
         defaults: &[("target", "ask if it isn't clear")],
     },
 ];

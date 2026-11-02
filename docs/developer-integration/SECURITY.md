@@ -42,6 +42,9 @@ Every request on a project connection runs with these rules, in `apps/figcraft/s
 - **Screenshots:** returned as data. `ui.screenshot {path}` is refused, because that file is written
   after the request's confinement ends.
 
+`export_assets`, `compare_design` and `sync_mappings` go through the same gateway, so they read and
+write only inside the project.
+
 An agent still has full design access. It can change or delete anything in the open documents,
 through ordinary undoable commands, and it can read their names and paths through `document.inspect`.
 

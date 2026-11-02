@@ -408,8 +408,9 @@ a later step can use `{"$step": 0, "field": "ids/0"}` to target the first match.
 | `styles` | By id: the shared styles the tree uses |
 | `components` | By id: `name`, `type`, `properties` with variants, `codeLinks` |
 | `fonts` | `family`, `styles`, and whether it's `installed` |
+| `responsive` | Only what the designer stated: `explicit`, `versions` (frames marked mobile, tablet or desktop, by design) and `rules` (notes in the Responsive annotation category). Nothing is inferred from names or sizes |
 | `assets` | What `inspect.assets` lists for the same layers |
-| `missing` | `{what, why}`: what the design doesn't specify. Always says that the file stores no breakpoints |
+| `missing` | `{what, why}`: what the design doesn't specify. Always says that the file stores no breakpoint values |
 | `truncated` | When `depth` or `maxNodes` cut the tree, or `maxBytes` made the tool ask for fewer layers |
 
 Each layer in `nodes` has `id`, `name`, `type` and:
@@ -427,6 +428,16 @@ Each layer in `nodes` has `id`, `name`, `type` and:
 
 Values are the file's own. Nothing is converted to CSS or guessed. Hidden layers are in the tree, with
 `visible: false` in `explicit`.
+
+### Responsive design
+
+A file has no breakpoints, so a designer states what should happen, and agents read that rather than
+guess. `responsive.set {ids?, viewport, group?}` marks a frame as the `mobile`, `tablet` or `desktop`
+version of a design (`null` clears it; `group` defaults to the frame's name). `responsive.rule {id?,
+text}` adds a note to the Responsive annotation category, making it if the file lacks it.
+`responsive.list {ids?}` reads them, as `design_context` does under `responsive`. Marks are layer data
+(`figcraft.viewport`, `figcraft.viewportGroup`), so they save and sync with no change to the file
+format. In the app: the Inspect tab's **Screen sizes** section.
 
 ### Asset handoff
 

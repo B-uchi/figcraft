@@ -404,9 +404,12 @@ fn design_context(s: &mut Session, p: &Value) -> Result<Value> {
         }
         nodes.extend(layer(doc, *id, depth, cap, &mut used));
     }
-    let mut missing = vec![
-        json!({"what": "responsive behaviour", "why": "the file stores no breakpoints: sizes are as designed here, and constraints, sizing and annotations are all it says about other widths"}),
-    ];
+    let responsive = crate::responsive::context(doc, &ids);
+    let mut missing = vec![if responsive["explicit"] == true {
+        json!({"what": "breakpoints", "why": "the file stores no breakpoint values: `responsive` holds all the designer stated, and anything else about other widths isn't specified"})
+    } else {
+        json!({"what": "responsive behaviour", "why": "the file stores no breakpoints: sizes are as designed here, and constraints, sizing and annotations are all it says about other widths"})
+    }];
     let variables = variables_json(doc, &used.variables, &mut missing);
     let styles = styles_json(doc, &used.styles, &mut missing);
     let components = components_json(doc, &used.components);
@@ -421,6 +424,7 @@ fn design_context(s: &mut Session, p: &Value) -> Result<Value> {
         "styles": styles,
         "components": components,
         "fonts": fonts,
+        "responsive": responsive,
         "assets": crate::devinspect::assets(doc, &ids),
         "missing": missing,
     });
@@ -434,7 +438,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![spec!(
         "inspect.designContext",
         "Design context",
-        "{ids? | id? (those layers), scope?: selection|page|document (default the selection, or the page with nothing selected), depth? (default 32), maxNodes? (default 2000)}  everything needed to build them, in one read  → {version, document, target {source, ids, layers}, nodes [{id, name, type, explicit, derived?, tokens?, unsupported? [{property, why}], code?, children?, childCount?}], variables, styles, components, fonts, assets, missing [{what, why}], truncated?}",
+        "{ids? | id? (those layers), scope?: selection|page|document (default the selection, or the page with nothing selected), depth? (default 32), maxNodes? (default 2000)}  everything needed to build them, in one read  → {version, document, target {source, ids, layers}, nodes [{id, name, type, explicit, derived?, tokens?, unsupported? [{property, why}], code?, children?, childCount?}], variables, styles, components, fonts, responsive {explicit, versions, rules}, assets, missing [{what, why}], truncated?}",
         false,
         design_context
     )]
