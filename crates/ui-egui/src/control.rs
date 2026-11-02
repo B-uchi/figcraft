@@ -138,6 +138,9 @@ pub struct ControlRequest {
     /// The transport stops waiting after its timeout; discard requests still queued then. The UI
     /// passes the same gate to its screenshot's final commit.
     pub state: RequestGate,
+    /// What this request's file access is confined to, in place of the app's: a connected
+    /// project's folder. `None`: as the app itself.
+    pub roots: Option<Arc<figcraft_engine::file_access::Roots>>,
 }
 
 impl ControlRequest {
@@ -370,7 +373,7 @@ fn reply(r: &mut ShotRequest, result: Result<Value, String>) {
 /// geometry from a stale pass.
 fn admit(app: &mut FigApp, r: ControlRequest, window: u64, now: f64) {
     let canceled = r.is_cancelled();
-    let ControlRequest { id, method: _, params, reply: tx, state } = r;
+    let ControlRequest { id, method: _, params, reply: tx, state, roots: _ } = r;
     if app.capture.shots.len() >= MAX_SHOTS {
         if !canceled {
             let _ = tx.send(ControlReply { id, result: Err(format!("too many screenshots are pending (at most {MAX_SHOTS})")) });
@@ -551,7 +554,10 @@ pub fn background(app: &mut FigApp, ctx: &Context) {
             // Every control-channel gesture is fenced from the user's system clipboard.
             let before = app.control_synthetic;
             app.control_synthetic = true;
-            crate::windows::guard(app, ctx, |app| res = handle(app, ctx, &r.method, &r.params));
+            let roots = r.roots.clone();
+            crate::windows::guard(app, ctx, |app| {
+                res = figcraft_engine::file_access::confined(roots.as_ref(), || handle(app, ctx, &r.method, &r.params));
+            });
             app.control_synthetic = before;
             res
         });
@@ -758,7 +764,7 @@ fn route_queued(app: &mut FigApp, ctx: &Context, viewport: egui::ViewportId, now
     // restored so a batch already in a frame's raw input keeps its own provenance).
     let before = app.control_synthetic;
     app.control_synthetic = true;
-    let res = handle(app, ctx, &r.method, &r.params);
+    let res = figcraft_engine::file_access::confined(r.roots.as_ref(), || handle(app, ctx, &r.method, &r.params));
     app.control_synthetic = before;
     if r.method == "ui.input" && std::mem::take(&mut app.control_input_queued) {
         // Acknowledge once the pass that applies the batch is presented, never from a sizing

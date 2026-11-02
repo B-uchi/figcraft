@@ -31,6 +31,7 @@ pub use menu_input::MenuInput;
 use menu_input::menu_input_dialog;
 pub mod branch_ui;
 pub mod credits;
+mod developer_connect;
 pub mod import_report;
 pub mod missing_fonts;
 pub mod plugins_ui;
@@ -211,6 +212,7 @@ pub fn show(app: &mut FigApp, ctx: &Context) {
     crate::import_report::show(app, ctx);
     crate::missing_fonts::show(app, ctx);
     crate::sampled_color::show(app, ctx);
+    developer_connect::show(app, ctx);
     let t = Tokens::get(ctx);
     if app.ui.about {
         let mut open = true;

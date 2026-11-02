@@ -3,15 +3,19 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use figcraft_engine::events::{self, EventLog};
+use figcraft_engine::file_access::Roots;
+use figcraft_engine::project_connect;
+use figcraft_ui_egui::connect::Hub;
 use figcraft_ui_egui::{ControlReply, ControlRequest, RequestGate, RequestState};
 use serde_json::{Value, json};
 
-type Queue = Arc<Mutex<Vec<ControlRequest>>>;
-type CtxSlot = Arc<Mutex<Option<egui::Context>>>;
+pub(crate) type Queue = Arc<Mutex<Vec<ControlRequest>>>;
+pub(crate) type CtxSlot = Arc<Mutex<Option<egui::Context>>>;
 
 const MAX_LINE: usize = 32 * 1024 * 1024;
 const MAX_CONNECTIONS: usize = 8;
@@ -23,6 +27,51 @@ const MAX_TIMEOUT: Duration = Duration::from_secs(600);
 /// example while the process has no file descriptors left, and retrying at once would keep a
 /// core busy until it recovers.
 const ACCEPT_RETRY: Duration = Duration::from_millis(100);
+
+/// What a project connection may ask: what the MCP tools use. Nothing here operates the app's own
+/// windows, so an agent can't reach Developer Connect to widen what it was given.
+const PROJECT_METHODS: &[&str] = &[
+    "engine.execute",
+    "engine.commands",
+    "document.inspect",
+    "node.get",
+    "ui.inspect",
+    "ui.pointer",
+    "ui.key",
+    "ui.type",
+    "ui.render",
+    "ui.screenshot",
+    "window.list",
+    "events.poll",
+];
+
+/// A Developer Connect connection: the project it is confined to.
+pub(crate) struct Scope<'a> {
+    pub hub: &'a Hub,
+    pub link: u64,
+    pub roots: Arc<Roots>,
+    pub path: PathBuf,
+    pub name: String,
+}
+
+impl Scope<'_> {
+    /// What `connect.hello` and `connect.info` answer.
+    pub fn info(&self) -> Value {
+        json!({"project": project_connect::info(&self.path, &self.name), "files": self.roots.to_json(), "app": {"version": env!("CARGO_PKG_VERSION")}})
+    }
+
+    /// Why `method` isn't for this connection.
+    fn refuses(&self, method: &str, params: &Value) -> Option<String> {
+        if !self.hub.linked(self.link) {
+            return Some("this project was disconnected in FigCraft: connect it again in Developer Connect".into());
+        }
+        if !PROJECT_METHODS.contains(&method) {
+            return Some(format!("`{method}` isn't available to a connected project"));
+        }
+        // The file would be written later, past this request's confinement; the PNG comes back as data.
+        (method == "ui.screenshot" && params.get("path").is_some()).then(|| "`ui.screenshot` takes no `path` here: the PNG comes back as data".into())
+    }
+}
 
 /// Why a request's transport wait ended without a control reply.
 #[derive(Debug, PartialEq, Eq)]
@@ -103,15 +152,17 @@ pub fn bind(port: u16, busy: Duration) -> std::io::Result<TcpListener> {
     }
 }
 
-pub fn start(port: u16, busy: Duration, queue: Queue, ctx: CtxSlot, events: Arc<EventLog>) {
+pub fn start(port: u16, busy: Duration, queue: Queue, ctx: CtxSlot, events: Arc<EventLog>, hub: &Hub) {
     let listener = match bind(port, busy) {
         Ok(l) => l,
         Err(e) => {
             log::error!("control server: can't bind 127.0.0.1:{port}: {e} (another app may own it; pick another port)");
             eprintln!("FigCraft control server failed to bind port {port}: {e}");
+            hub.set_control(Err(format!("port {port}: {e}")));
             return;
         }
     };
+    hub.set_control(Ok(port));
     eprintln!("FigCraft control server listening on 127.0.0.1:{port}");
     let spawned = std::thread::Builder::new().name("figcraft-control".into()).spawn(move || {
         let mut workers = Vec::new();
@@ -158,10 +209,23 @@ fn serve(out: TcpStream, queue: Queue, ctx: CtxSlot, timeout: Duration) -> std::
     serve_with_events(out, queue, ctx, Arc::new(EventLog::default()), timeout)
 }
 
-fn serve_with_events(mut out: TcpStream, queue: Queue, ctx: CtxSlot, events: Arc<EventLog>, timeout: Duration) -> std::io::Result<()> {
+fn serve_with_events(out: TcpStream, queue: Queue, ctx: CtxSlot, events: Arc<EventLog>, timeout: Duration) -> std::io::Result<()> {
     out.set_read_timeout(Some(timeout))?;
     out.set_write_timeout(Some(timeout))?;
-    let mut reader = BufReader::new(out.try_clone()?);
+    let reader = BufReader::new(out.try_clone()?);
+    serve_lines(reader, out, queue, ctx, events, timeout, None)
+}
+
+/// The serving loop: on `--control`, or confined to `scope` on a project connection.
+pub(crate) fn serve_lines(
+    mut reader: BufReader<TcpStream>,
+    mut out: TcpStream,
+    queue: Queue,
+    ctx: CtxSlot,
+    events: Arc<EventLog>,
+    timeout: Duration,
+    scope: Option<&Scope>,
+) -> std::io::Result<()> {
     let mut line = Vec::new();
     loop {
         line.clear();
@@ -183,7 +247,23 @@ fn serve_with_events(mut out: TcpStream, queue: Queue, ctx: CtxSlot, events: Arc
             Ok(v) => {
                 let id = v.get("id").cloned().unwrap_or(Value::Null);
                 let method = v.get("method").and_then(Value::as_str).unwrap_or("").to_string();
-                let params = v.get("params").cloned().unwrap_or(json!({}));
+                let mut params = v.get("params").cloned().unwrap_or(json!({}));
+                if let Some(scope) = scope {
+                    if method == "connect.info" {
+                        writeln!(out, "{}", json!({"id": id, "ok": true, "result": scope.info()}))?;
+                        continue;
+                    }
+                    if let Some(error) = scope.refuses(&method, &params) {
+                        writeln!(out, "{}", json!({"id": id, "ok": false, "error": error}))?;
+                        continue;
+                    }
+                    // Always an agent: what the app keeps from agents stays kept, whoever asks.
+                    if method == "engine.execute"
+                        && let Some(p) = params.as_object_mut()
+                    {
+                        p.entry("agent").or_insert(json!(""));
+                    }
+                }
                 // A poll waits on the shared log, not on a frame: it needs no UI thread and no
                 // request slot, and it works while the window is minimised.
                 if method == "events.poll" {
@@ -205,7 +285,14 @@ fn serve_with_events(mut out: TcpStream, queue: Queue, ctx: CtxSlot, events: Arc
                     continue;
                 }
                 let needs_frame = matches!(method.as_str(), "ui.screenshot" | "ui.input");
-                pending.push(ControlRequest { id: id.clone(), method, params, reply: tx, state: gate.clone() });
+                pending.push(ControlRequest {
+                    id: id.clone(),
+                    method,
+                    params,
+                    reply: tx,
+                    state: gate.clone(),
+                    roots: scope.map(|s| s.roots.clone()),
+                });
                 drop(pending);
                 if let Some(c) = ctx.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref() {
                     c.request_repaint();

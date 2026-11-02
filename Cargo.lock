@@ -1779,6 +1779,7 @@ dependencies = [
  "figcraft-text",
  "figcraft-ui-egui",
  "fmv-macos-events",
+ "getrandom 0.4.3",
  "image",
  "log",
  "objc2-app-kit 0.3.2",

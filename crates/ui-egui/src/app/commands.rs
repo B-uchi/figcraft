@@ -125,6 +125,7 @@ impl FigApp {
                     self.ui.about_tab = dialogs::AboutTab::About;
                 }
                 "dialog.preferences" => self.ui.preferences = true,
+                "dialog.developerConnect" => self.ui.developer_connect = true,
                 "dialog.missingFonts" => missing_fonts::request(self),
                 "dialog.createFromColor" => crate::sampled_color::request(self, &r.data),
                 "panel.shortcuts" => self.ui.shortcuts_panel = !self.ui.shortcuts_panel,

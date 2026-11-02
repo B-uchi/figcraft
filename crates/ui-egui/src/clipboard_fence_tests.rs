@@ -101,6 +101,7 @@ fn a_synthetic_copy_shortcut_leaves_the_system_clipboard_alone() {
         params: json!({"events": [{"key": "C", "shift": true, "cmd": true}]}),
         reply: tx,
         state: Default::default(),
+        roots: None,
     });
     w.frame(vec![]);
     let events = crate::windows::take_input(&mut w.app, egui::ViewportId::ROOT);
@@ -146,6 +147,7 @@ fn a_synthetic_ui_menu_invoke_copy_link_keeps_the_clipboard_then_a_user_copy_wri
         params: json!({"id": "edit.copyLink"}),
         reply: tx,
         state: Default::default(),
+        roots: None,
     });
     w.frame(vec![]);
     let reply = rx.try_recv().expect("the menu invocation is acknowledged");

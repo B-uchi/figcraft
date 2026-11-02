@@ -28,7 +28,7 @@ fn frame(ctx: &egui::Context, app: &mut FigApp, close: bool) -> Vec<egui::Viewpo
 /// A control request queued for the UI, and where its reply arrives.
 fn request(app: &mut FigApp, method: &str, params: Value) -> Receiver<ControlReply> {
     let (reply, rx) = channel();
-    app.control_queue.push(ControlRequest { id: json!(1), method: method.into(), params, reply, state: Default::default() });
+    app.control_queue.push(ControlRequest { id: json!(1), method: method.into(), params, reply, state: Default::default(), roots: None });
     rx
 }
 

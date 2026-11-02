@@ -342,6 +342,7 @@ fn help_button(app: &mut FigApp, ui: &mut Ui, canvas: Rect, pill: Rect, t: &Toke
             (tr("Getting started"), "help.gettingStarted"),
             (tr("Keyboard shortcuts"), "help.shortcuts"),
             (tr("Help page"), "help.page"),
+            (tr("Developer Connect…"), "developer.connect"),
             (tr("Check for updates…"), "help.checkForUpdates"),
             (tr("About FigCraft"), "help.about"),
         ] {

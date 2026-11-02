@@ -30,7 +30,7 @@ fn reply(reader: &mut BufReader<TcpStream>) -> Value {
 
 /// Build a `ui.inspect` control request with a throwaway reply channel.
 fn request() -> ControlRequest {
-    ControlRequest { id: json!(0), method: "ui.inspect".into(), params: json!({}), reply: mpsc::channel().0, state: Default::default() }
+    ControlRequest { id: json!(0), method: "ui.inspect".into(), params: json!({}), reply: mpsc::channel().0, state: Default::default(), roots: None }
 }
 
 #[test]

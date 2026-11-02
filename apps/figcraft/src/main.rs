@@ -23,6 +23,7 @@ compile_error!("Windows GNU builds must set windows_slim_errors to keep UI Autom
 #[cfg(target_os = "macos")]
 mod apple_events;
 mod args;
+mod connect_server;
 mod control_server;
 mod gamepad;
 mod graphics;
@@ -203,8 +204,10 @@ fn main() -> eframe::Result {
     let recovery_root = services::config_dir().map(|d| d.join("Recovery"));
     // The preferences first: they hold the online files a recovered document may be one of.
     let recovery = recovery::Shared::default();
-    let svc = services::Desktop::load(recovery.clone());
+    let mut svc = services::Desktop::load(recovery.clone());
     svc.follow_system_dark(wake(&ctx_slot));
+    let queue: Arc<Mutex<Vec<ControlRequest>>> = Arc::new(Mutex::new(Vec::new()));
+    svc.set_connect(connect_server::Launcher::new(queue.clone(), ctx_slot.clone(), session.events.clone()));
     if let Some(prefs) = svc.prefs.clone() {
         session.prefs = prefs;
     }
@@ -241,10 +244,10 @@ fn main() -> eframe::Result {
     if let Some(link) = &args.join {
         figcraft_ui_egui::live::open_invite(&mut fig, link);
     }
-    let queue: Arc<Mutex<Vec<ControlRequest>>> = Arc::new(Mutex::new(Vec::new()));
     if let Some(p) = port {
-        control_server::start(p, graphics::port_wait(), queue.clone(), ctx_slot.clone(), fig.session.events.clone());
+        control_server::start(p, graphics::port_wait(), queue.clone(), ctx_slot.clone(), fig.session.events.clone(), &fig.connect);
     }
+    fig.connect_resume();
     let icon = services::window_icon();
     // The app id is the Wayland app_id and the X11 window class on Linux: the desktop entry's name
     // and StartupWMClass (FreeBSD's package matches the binary's name instead).

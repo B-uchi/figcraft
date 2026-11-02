@@ -263,6 +263,7 @@ fn control_requests_and_screenshots_wake_an_idle_ui() {
         params: json!({}),
         reply: tx.clone(),
         state: Default::default(),
+        roots: None,
     });
     assert_eq!(h.frame(vec![]), Duration::ZERO);
     assert!(rx.try_recv().unwrap().result.is_ok());
@@ -270,7 +271,14 @@ fn control_requests_and_screenshots_wake_an_idle_ui() {
     // A screenshot keeps frames coming until the window delivers it, then the UI rests again.
     let path = std::env::temp_dir().join(format!("figcraft-idle-shot-{}.png", std::process::id()));
     let params = json!({"path": path.to_string_lossy()});
-    h.app.control_queue.push(ControlRequest { id: json!(2), method: "ui.screenshot".into(), params, reply: tx, state: Default::default() });
+    h.app.control_queue.push(ControlRequest {
+        id: json!(2),
+        method: "ui.screenshot".into(),
+        params,
+        reply: tx,
+        state: Default::default(),
+        roots: None,
+    });
     for _ in 0..5 {
         let delay = h.frame(vec![]);
         assert!(delay <= Duration::from_secs_f64(crate::control::SHOT_TIMEOUT), "waiting for the screenshot");
@@ -358,6 +366,7 @@ fn a_request_the_transport_gave_up_on_is_never_applied() {
         params: json!({"command": "node.set", "params": {"ids": [text.clone()], "props": {"name": name}}}),
         reply: tx.clone(),
         state: Default::default(),
+        roots: None,
     };
     let node = figcraft_doc::NodeId(text.as_u64().unwrap());
     let name = |h: &Harness| h.app.session.doc().unwrap().node(node).unwrap().name.clone();
@@ -407,6 +416,7 @@ fn a_hidden_window_answers_at_once() {
         params,
         reply: tx.clone(),
         state: Default::default(),
+        roots: None,
     };
     h.app.control_queue.push(request(1, "engine.execute", json!({"command": "file.save", "params": {"path": path.to_string_lossy()}})));
     h.app.control_queue.push(request(2, "ui.inspect", json!({})));

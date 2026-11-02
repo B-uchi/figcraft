@@ -25,6 +25,8 @@ pub struct Desktop {
     recovery: crate::recovery::Shared,
     /// The folder of the last file or folder a dialog picked, where the next one starts.
     last_folder: Arc<Mutex<Option<PathBuf>>>,
+    /// Developer Connect's listener.
+    connect: Option<crate::connect_server::Launcher>,
 }
 
 /// The settings folder's name in the platform folder, as it always was (the suite keeps existing
@@ -80,6 +82,11 @@ fn seed(to: &Path, from: &Path) {
 }
 
 impl Desktop {
+    /// Give the app Developer Connect's listener.
+    pub fn set_connect(&mut self, launcher: crate::connect_server::Launcher) {
+        self.connect = Some(launcher);
+    }
+
     pub fn load(recovery: crate::recovery::Shared) -> Self {
         Self::load_from(config_dir(), recovery)
     }
@@ -112,6 +119,7 @@ impl Desktop {
             language: system_language(),
             recovery,
             last_folder: Arc::default(),
+            connect: None,
         }
     }
 
@@ -351,6 +359,7 @@ const STATE: &str = "state.json";
 /// preferences in `dir`, this run's recovery copies ([`Recovery::quit`](crate::recovery::Recovery::quit))
 /// and the live sessions' ends (one this app hosts tells everyone and stops; a joined one leaves).
 pub fn shutdown(app: &mut FigApp, dir: Option<&Path>, recovery: Option<crate::recovery::Recovery>) {
+    app.services.connect_stop();
     if let Some(dir) = dir {
         write_prefs(dir, &app.session.prefs);
     }
@@ -375,7 +384,7 @@ pub(crate) fn write_prefs(dir: &Path, prefs: &Prefs) {
 
 /// Write `bytes` to `path`, owner read/write only on Unix from before the first byte (a leftover
 /// file from a crash is narrowed too: the mode given at open only applies to new files).
-fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
     let mut o = std::fs::OpenOptions::new();
     o.write(true).create(true).truncate(true);
@@ -481,6 +490,39 @@ pub(crate) fn remembering(last: Arc<Mutex<Option<PathBuf>>>, pick: DialogFuture,
 }
 
 impl Services for Desktop {
+    fn connect_available(&self) -> bool {
+        true
+    }
+
+    fn connect_start(&mut self, hub: Arc<figcraft_ui_egui::connect::Hub>) -> Result<u16, String> {
+        self.connect.as_mut().ok_or("the app isn't ready")?.start(hub)
+    }
+
+    fn connect_stop(&mut self) {
+        if let Some(c) = &mut self.connect {
+            c.stop();
+        }
+    }
+
+    fn connect_setup(
+        &self,
+        project: &Path,
+        client: &figcraft_engine::project_connect::Client,
+        entry: &figcraft_engine::project_connect::McpEntry,
+    ) -> Result<figcraft_engine::project_connect::Setup, String> {
+        figcraft_engine::project_connect::setup(project, client, entry, &figcraft_engine::project_connect::understands_project)
+    }
+
+    fn connect_cli(&self) -> Option<figcraft_engine::project_connect::McpEntry> {
+        let exe = std::env::current_exe().ok();
+        figcraft_engine::project_connect::cli_entry(
+            exe.as_deref(),
+            std::env::var_os("PATH").as_deref(),
+            std::env::var_os("APPIMAGE").as_deref(),
+            &figcraft_engine::project_connect::understands_project,
+        )
+    }
+
     fn pick_open(&mut self, title: &str, exts: &[&str]) -> DialogFuture {
         let pick = picked(self.dialog_in_last_folder(title).add_filter("Supported files", exts).pick_file());
         remembering(self.last_folder.clone(), pick, false)

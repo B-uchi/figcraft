@@ -18,6 +18,7 @@ pub mod a11y;
 pub mod bidi;
 pub mod canvas;
 pub mod cjk;
+pub mod connect;
 pub mod control;
 pub mod dialogs;
 pub mod home;
@@ -428,6 +429,10 @@ pub struct UiState {
     /// The Variables editor, when open.
     pub variables: Option<variables_panel::Editor>,
     pub about: bool,
+    /// The Developer Connect window.
+    pub developer_connect: bool,
+    /// What the last connection attempt did, or why it couldn't.
+    pub developer_connect_notice: Option<Result<String, String>>,
     /// The tab the About window shows.
     pub about_tab: dialogs::AboutTab,
     pub preferences: bool,
@@ -628,6 +633,8 @@ impl Default for UiState {
             actions_rect: None,
             variables: None,
             about: false,
+            developer_connect: false,
+            developer_connect_notice: None,
             about_tab: dialogs::AboutTab::About,
             preferences: false,
             menu_input: None,
@@ -765,6 +772,8 @@ pub struct FigApp {
     /// The automation roots the app was started with: every frame and control request runs
     /// confined to them ([`windows::guard`]).
     pub automation_roots: Option<Arc<figcraft_engine::file_access::Roots>>,
+    /// Developer Connect's projects, links and listener state.
+    pub connect: Arc<connect::Hub>,
     /// The active-document id when synthetic input was queued: a batch is dropped when the file
     /// changed before a UI pass applied it.
     pub(crate) control_input_doc: Option<u64>,

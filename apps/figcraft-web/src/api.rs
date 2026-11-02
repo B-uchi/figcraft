@@ -95,7 +95,7 @@ fn request(method: &str, params: Value) -> js_sys::Promise {
             n.set(n.get() + 1);
             n.get()
         });
-        let req = ControlRequest { id: json!(id), method: method.clone(), params: params.clone(), reply, state: Default::default() };
+        let req = ControlRequest { id: json!(id), method: method.clone(), params: params.clone(), reply, state: Default::default(), roots: None };
         QUEUE.with(|q| q.borrow_mut().push(req));
         WAITING.with(|w| w.borrow_mut().push((rx, resolve, reject)));
     });
