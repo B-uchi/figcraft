@@ -205,3 +205,29 @@ fn a_headless_server_needs_a_folder_to_write_to() {
     let r = call(&mut s, "export_assets", json!({}));
     assert!(text(&r).contains("pass `dir`"), "{r}");
 }
+
+#[test]
+fn mappings_travel_through_the_projects_file() {
+    let (dir, project) = (folder("map-dir"), folder("map-project"));
+    let _app = FakeApp::start(&dir, 1, "t", &project);
+    let mut s = server(&project, &dir);
+    let frame = call(&mut s, "create_node", json!({"type": "frame", "name": "Tag", "width": 80, "height": 24}));
+    let id = serde_json::from_str::<Value>(text(&frame)).unwrap()["id"].clone();
+    let made = call(&mut s, "run_command", json!({"command": "component.create", "params": {"ids": [id]}}));
+    let main = serde_json::from_str::<Value>(text(&made)).unwrap()["id"].clone();
+    std::fs::write(project.join("figcraft.connect.json"), r#"{"version":1,"project":{"name":"shop"},"links":[{"component":"Tag","language":"react","importPath":"@/ui/tag","name":"Tag","template":"<Tag />","source":"src/tag.tsx"}]}"#).unwrap();
+    let before: Value = serde_json::from_str(text(&call(&mut s, "component_mappings", json!({"unmapped": true})))).unwrap();
+    assert_eq!(before["unmapped"], 1);
+    assert_eq!(call(&mut s, "sync_mappings", json!({"direction": "import"}))["isError"], false);
+    let after: Value = serde_json::from_str(text(&call(&mut s, "component_mappings", json!({"ids": [main]})))).unwrap();
+    assert_eq!(after["components"][0]["links"][0]["import"], r#"import { Tag } from "@/ui/tag";"#);
+    assert_eq!(after["components"][0]["links"][0]["sourceFound"], false, "src/tag.tsx isn't there");
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(project.join("src/tag.tsx"), "").unwrap();
+    let found: Value = serde_json::from_str(text(&call(&mut s, "component_mappings", json!({"ids": [main]})))).unwrap();
+    assert_eq!(found["components"][0]["links"][0]["sourceFound"], true);
+    assert_eq!(call(&mut s, "sync_mappings", json!({"direction": "export"}))["isError"], false);
+    let file: Value = serde_json::from_slice(&std::fs::read(project.join("figcraft.connect.json")).unwrap()).unwrap();
+    assert_eq!(file["project"]["name"], "shop", "the project's settings stay");
+    assert!(call(&mut s, "sync_mappings", json!({"direction": "sideways"}))["isError"] == true);
+}

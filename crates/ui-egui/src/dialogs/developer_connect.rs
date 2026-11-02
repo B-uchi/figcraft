@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use egui::{Context, Id, RichText, Ui};
 use figcraft_engine::ConnectedProject;
 use figcraft_engine::project_connect::{self, CLIENTS, Status};
+use serde_json::json;
 
 use crate::FigApp;
 use crate::i18n::{tr, trf, trn};
@@ -22,6 +23,8 @@ struct Clicks {
     reconnect: Option<PathBuf>,
     remove: Option<String>,
     asset_dir: Option<(PathBuf, String)>,
+    /// Apply the project's mappings to the open design (or write them back).
+    mappings: Option<(PathBuf, &'static str)>,
     copy: Option<String>,
 }
 
@@ -65,6 +68,13 @@ fn act(app: &mut FigApp, clicks: Clicks) {
         && let Err(e) = project_connect::set_asset_dir(&path, &dir)
     {
         app.show_error(e);
+    }
+    if let Some((path, command)) = clicks.mappings {
+        let file = path.join(project_connect::CONNECT_FILE);
+        if let Some(done) = app.run(command, json!({"path": file.to_string_lossy()})) {
+            let n = done.get("linked").or_else(|| done.get("links")).and_then(serde_json::Value::as_u64).unwrap_or(0) as usize;
+            app.toast(trn("{n} code mappings", n, &[]));
+        }
     }
     if let Some(text) = clicks.copy {
         app.services.clipboard_set_text(&text);
@@ -198,7 +208,18 @@ fn project_row(app: &FigApp, ui: &mut Ui, t: &Tokens, p: &ConnectedProject, clic
     fact(ui, t, tr("Configured for"), &clients_line(&status));
     let agents = if linked.is_empty() { tr("None right now").to_string() } else { linked.join(", ") };
     fact(ui, t, tr("Agents connected"), &agents);
-    fact(ui, t, project_connect::CONNECT_FILE, &trn("{n} code mappings", status.settings.links, &[]));
+    ui.horizontal(|ui| {
+        fact(ui, t, project_connect::CONNECT_FILE, &trn("{n} code mappings", status.settings.links, &[]));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let usable = status.connect_file && app.session.ds().is_ok();
+            if widgets::button(ui, tr("Export"), false, usable).on_hover_text(tr("Write this design's mappings to the project")).clicked() {
+                clicks.mappings = Some((path.to_path_buf(), "codeConnect.export"));
+            }
+            if widgets::button(ui, tr("Import"), false, usable).on_hover_text(tr("Apply the project's mappings to this design")).clicked() {
+                clicks.mappings = Some((path.to_path_buf(), "codeConnect.import"));
+            }
+        });
+    });
     ui.horizontal(|ui| {
         fact_label(ui, t, tr("Asset folder"));
         let id = Id::unique(("developer_connect_assets", &p.path));

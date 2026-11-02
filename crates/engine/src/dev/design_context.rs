@@ -174,7 +174,14 @@ fn code(doc: &Document, id: NodeId) -> Vec<Value> {
         .filter_map(|l| {
             let lang = CodeLang::from_id(&l.language)?;
             let snippet = code_connect::connected_code(doc, id, lang, l)?;
-            Some(json!({"language": l.language, "importPath": l.import_path, "name": l.name, "code": snippet}))
+            let mut v = json!({"language": l.language, "importPath": l.import_path, "name": l.name, "code": snippet});
+            if !l.source.is_empty() {
+                v["source"] = json!(l.source);
+            }
+            if !l.notes.is_empty() {
+                v["notes"] = json!(l.notes);
+            }
+            Some(v)
         })
         .collect()
 }
