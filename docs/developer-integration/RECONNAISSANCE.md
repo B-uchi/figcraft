@@ -295,6 +295,9 @@ Phase 1 then 2, 3, 4, 5, 6, each with its own tests and report. Phase 1 order: s
 configuration, then the authenticated listener and per-request confinement, then the CLI and
 `Attached`, then the window, then documentation.
 
+The phases are implemented as described in [ARCHITECTURE.md](ARCHITECTURE.md). This report records the
+repository as it was before them.
+
 ## 12. Questions for maintainers
 
 1. Is a per-run token in a user-only discovery file acceptable as the local trust boundary?
