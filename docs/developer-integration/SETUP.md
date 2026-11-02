@@ -42,6 +42,7 @@ what the design doesn't specify, as described in [the MCP guide](../mcp.md#desig
 - Agents write real assets to the project with `export_assets`.
 - Map design components to your code so they're reused: [CODE_CONNECT.md](CODE_CONNECT.md).
 - State what should happen at other sizes: [RESPONSIVE.md](RESPONSIVE.md).
+- Check the result against the design: [VERIFY.md](VERIFY.md).
 
 ## What connecting does
 

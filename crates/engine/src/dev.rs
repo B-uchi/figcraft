@@ -11,3 +11,4 @@ pub mod devinspect;
 pub mod project_connect;
 pub mod responsive;
 pub mod tailwind;
+pub mod visual_compare;

@@ -74,6 +74,7 @@ pub use dev::devinspect;
 pub use dev::project_connect;
 pub use dev::responsive;
 pub use dev::tailwind;
+pub use dev::visual_compare;
 pub use extensions::plugin_directory;
 pub use extensions::plugins;
 pub use extensions::widgets;
@@ -632,6 +633,8 @@ mod version_preview_tests;
 mod version_tests;
 #[cfg(test)]
 mod view_behaviour_tests;
+#[cfg(test)]
+mod visual_compare_tests;
 #[cfg(test)]
 mod vote_history_tests;
 #[cfg(test)]

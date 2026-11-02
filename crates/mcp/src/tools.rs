@@ -104,6 +104,7 @@ pub const TOOL_NAMES: &[&str] = &[
     "export_assets",
     "component_mappings",
     "sync_mappings",
+    "compare_design",
     "select",
     "export",
     "screenshot",
@@ -131,6 +132,7 @@ const DOCUMENT_TOOLS: &[&str] = &[
     "export_assets",
     "component_mappings",
     "sync_mappings",
+    "compare_design",
     "select",
     "export",
     "screenshot",
@@ -316,6 +318,21 @@ fn tools() -> Vec<Value> {
                 &["direction"],
             ),
             false,
+        ),
+        tool(
+            "compare_design",
+            "Compare with the design",
+            "Compare a browser capture you made with a frame, locally. Use the `viewport` it returns to size the browser, capture the page, and call this again. It names the layers that differ, deepest first, each as a position, colour or content difference with the expected and actual colours and any offset. Fix those; don't aim for a pixel score, because fonts and antialiasing always differ a little between renderers.",
+            obj(
+                json!({
+                    "id": id_schema("The frame (default the first selected layer)"),
+                    "image": string("The capture: a PNG, JPEG or WebP file in the project"),
+                    "density": num("Device pixels per CSS pixel (default from the widths)"),
+                    "tolerance": num("How different a pixel must be to count, out of 255 (default 24)")
+                }),
+                &["image"],
+            ),
+            true,
         ),
         tool(
             "select",
@@ -551,6 +568,16 @@ fn sync_mappings(b: &mut dyn Backend, a: &Map<String, Value>) -> Result<ToolResu
     exec(b, command, json!({"path": path})).map(|v| ToolResult::json(&v))
 }
 
+/// `inspect.compare` with a capture in the connected project.
+fn compare_design(b: &mut dyn Backend, a: &Map<String, Value>) -> Result<ToolResult, String> {
+    let mut params = a.clone();
+    let image = s_arg(a, "image")?.ok_or("`image` required")?;
+    let path = b.project_path(image);
+    params.remove("image");
+    params.insert("path".into(), json!(path));
+    exec(b, "inspect.compare", Value::Object(params)).map(|v| ToolResult::json(&v))
+}
+
 fn wait_for_changes(b: &mut dyn Backend, a: &Map<String, Value>) -> Result<ToolResult, String> {
     b.call("events.poll", Value::Object(a.clone())).map(|v| ToolResult::json(&v))
 }
@@ -700,6 +727,7 @@ pub fn call_tool(b: &mut dyn Backend, name: &str, args: &Value) -> ToolResult {
         "export_assets" => export_assets(b, &a),
         "component_mappings" => component_mappings(b, &a),
         "sync_mappings" => sync_mappings(b, &a),
+        "compare_design" => compare_design(b, &a),
         "select" => select(b, &a),
         "export" => export(b, &a),
         "screenshot" => screenshot(b, &a),
