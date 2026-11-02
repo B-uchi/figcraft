@@ -69,6 +69,7 @@ pub use dev::dev_measurements;
 pub use dev::dev_resources;
 pub use dev::devcompare;
 pub use dev::devinspect;
+pub use dev::project_connect;
 pub use dev::tailwind;
 pub use extensions::plugin_directory;
 pub use extensions::plugins;
@@ -110,7 +111,9 @@ mod view_state;
 pub use derived::{changed_nodes, normalize};
 pub use doc_state::{DocState, History, HistoryEntry, Interaction, PREVIEW_READ_ONLY, Preedit, TextEdit, VersionPreview};
 pub use error::{EngineError, Result, bad};
-pub use prefs::{Clipboard, MAX_RECENT_ACTIONS, Prefs, UI_SCALE_MAX, UI_SCALE_MIN, UI_SCALE_SIZES, UiRequest, clamp_ui_scale};
+pub use prefs::{
+    Clipboard, ConnectPrefs, ConnectedProject, MAX_RECENT_ACTIONS, Prefs, UI_SCALE_MAX, UI_SCALE_MIN, UI_SCALE_SIZES, UiRequest, clamp_ui_scale,
+};
 pub use session::Forward;
 pub use view_state::ViewState;
 
@@ -476,6 +479,8 @@ mod plugin_panels_tests;
 pub(crate) mod plugins_tests;
 #[cfg(test)]
 mod progressive_blur_tests;
+#[cfg(test)]
+mod project_connect_tests;
 #[cfg(test)]
 mod prop_order_tests;
 #[cfg(test)]

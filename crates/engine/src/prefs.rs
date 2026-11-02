@@ -22,6 +22,24 @@ fn read_ui_scale<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<
     Ok(Value::deserialize(d)?.as_f64().and_then(clamp_ui_scale).unwrap_or(1.0))
 }
 
+/// A project folder the user connected in Developer Connect.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConnectedProject {
+    pub path: String,
+    pub name: String,
+}
+
+/// Developer Connect on this computer. Only the window changes this: no command does, so an agent
+/// can't give itself a folder.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConnectPrefs {
+    /// The app listens for connected projects' agents, from when it starts.
+    pub enabled: bool,
+    pub projects: Vec<ConnectedProject>,
+}
+
 /// App-wide preferences that commands read (nudge amounts, behaviours).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -57,6 +75,8 @@ pub struct Prefs {
     /// [`UI_SCALE_MAX`]). The canvas zoom is separate.
     #[serde(deserialize_with = "read_ui_scale")]
     pub ui_scale: f64,
+    /// Developer Connect's projects.
+    pub connect: ConnectPrefs,
     /// Files that have a path are saved by themselves a few seconds after they change (the app's
     /// timer; off: only File ▸ Save writes them).
     pub auto_save: bool,
@@ -143,6 +163,7 @@ impl Default for Prefs {
             user_name: cmd::comment::DEFAULT_AUTHOR.into(),
             reduce_motion: false,
             ui_scale: 1.0,
+            connect: ConnectPrefs::default(),
             auto_save: false,
             start_on_home: false,
             invite_links: None,

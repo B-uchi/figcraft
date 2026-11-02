@@ -606,7 +606,7 @@ pub fn specs() -> Vec<CommandSpec> {
         spec!(
             "codeConnect.export",
             "Export code connections",
-            "{path? (write it there, e.g. figcraft.connect.json in the code repository)}  every component's links as {version: 1, links: [{component (its name), language, importPath, name, template}]}, sorted  → {text, links} or {path, links}",
+            "{path? (write it there, e.g. figcraft.connect.json in the code repository; other top-level keys of a file already there stay)}  every component's links as {version: 1, links: [{component (its name), language, importPath, name, template}]}, sorted  → {text, links} or {path, links}",
             false,
             |s, p| {
                 let cmd = "codeConnect.export";
@@ -625,8 +625,16 @@ pub fn specs() -> Vec<CommandSpec> {
                     |v: &Value| (v["component"].as_str().unwrap_or_default().to_string(), v["language"].as_str().unwrap_or_default().to_string());
                 links.sort_by_key(key);
                 let count = links.len();
-                let text =
-                    serde_json::to_string_pretty(&json!({"version": VERSION, "links": links})).map_err(|e| EngineError::Other(e.to_string()))? + "\n";
+                let mut file = json!({"version": VERSION, "links": links});
+                // The file also holds the project's settings: only the links are this command's.
+                if let Some(old) = path.as_deref().and_then(kept_keys)
+                    && let Some(fields) = file.as_object_mut()
+                {
+                    for (k, v) in old {
+                        fields.entry(k).or_insert(v);
+                    }
+                }
+                let text = serde_json::to_string_pretty(&file).map_err(|e| EngineError::Other(e.to_string()))? + "\n";
                 match path {
                     Some(path) => {
                         crate::cmd::file::write(&path, text.as_bytes())?;
@@ -644,6 +652,17 @@ pub fn specs() -> Vec<CommandSpec> {
             import
         ),
     ]
+}
+
+/// The top-level keys of the connect file at `path`, if there is a readable one.
+fn kept_keys(path: &str) -> Option<serde_json::Map<String, Value>> {
+    if !crate::file_access::exists(path) {
+        return None;
+    }
+    match serde_json::from_slice(&crate::cmd::file::read_capped(path, MAX_FILE).ok()?).ok()? {
+        Value::Object(fields) => Some(fields),
+        _ => None,
+    }
 }
 
 fn import(s: &mut Session, p: &Value) -> Result<Value> {
