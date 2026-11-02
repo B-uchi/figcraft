@@ -273,10 +273,13 @@ the flags leave the output identical when nothing strays outside the roots.
 Every command with its label, shortcut, undoable flag (`*`) and parameter docs; `--json` for
 machines.
 
-### `mcp [--attach PORT] [--automation-read-root DIR]… [--automation-write-root DIR]…`
+### `mcp [--attach PORT | --project [DIR]] [--automation-read-root DIR]… [--automation-write-root DIR]…`
 
-Serve MCP on stdio: headless by default, or attached to a running app started with
-`figcraft --control PORT`. See [mcp.md](mcp.md). The automation roots (each repeatable; existing
+Serve MCP on stdio: headless by default, attached to a running app started with
+`figcraft --control PORT`, or with `--project` for a project connected in the app's
+[Developer Connect](developer-integration/SETUP.md), which finds the app itself and keeps serving
+while it is closed (`DIR` as for `connect setup`; it refuses the automation roots too, and takes
+`--timeout`). See [mcp.md](mcp.md). The automation roots (each repeatable; existing
 folders) confine the files the agent's calls read (inside a read or write root) and write (inside a
 write root); everything else is refused ([mcp.md › Confining file access](mcp.md#confining-file-access)).
 They apply to the headless session only, and that is why `--attach` refuses them: an attached server
@@ -295,6 +298,15 @@ size and SHA-256. The server's key comes from the address or, better, from the
 `FIGCRAFT_SERVER_KEY` environment variable (it then stays out of the shell history and process
 lists); it is never printed. The bundle is checked before it is sent and again by the server. See
 [plugins.md](plugins.md#plugin-directories).
+
+### `connect setup [DIR]` and `connect status [DIR]`
+
+`setup` prepares a project for [Developer Connect](developer-integration/SETUP.md): it adds FigCraft
+to `.mcp.json` (other servers stay as they are, byte for byte) and makes `figcraft.connect.json`.
+Running it again changes nothing, and a `.mcp.json` that isn't valid is left alone with an error. It
+gives no access: connect the folder in the app as well. `status` changes nothing: it prints the
+project's configuration and whether a running app has it connected, and exits with 1 otherwise.
+`DIR` defaults to the nearest folder upwards with a `figcraft.connect.json`, else the working folder.
 
 ### `connect publish <file.figcraft> [--mappings FILE] [--dry-run]`
 
