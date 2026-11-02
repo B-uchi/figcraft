@@ -122,7 +122,7 @@ pub const PROMPTS: &[PromptDef] = &[
 
 1. Read it: design_context {}. If the selection is wrong or empty, ask the designer to select the frame. If the result has `truncated`, call design_context again with the `ids` of the parts it left out.
 2. Learn the project's conventions before writing code: its components, styling and tokens.
-3. Implement every layer that has `code` with that snippet and its import. Never rebuild a connected component, and don't create a component the project already has.
+3. Call component_mappings {"unmapped": true} for what the design uses without a mapping. If the project has a figcraft.connect.json with more, run sync_mappings {"direction": "import"} first. Implement every layer that has `code` with that snippet and its import. Never rebuild a connected component, and search the project before creating one a mapping doesn't cover.
 4. Use tokens over literal values: for each entry in a layer's `tokens`, use the variable's `codeSyntax`, or the project's matching token, before its resolved value.
 5. Treat `explicit` values as the specification. `derived` values are what layout produced at this size, so build the layout that produces them (auto layout, sizing) rather than hard-coding them.
 6. Bring in real assets with export_assets: it writes them to the project and returns each file. Use those files, never screenshots or redrawn stand-ins. A `rendered` file isn't the original, and each entry in `adjustments` still has to be applied in code.

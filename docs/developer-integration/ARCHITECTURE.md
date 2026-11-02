@@ -227,6 +227,5 @@ behind, and two layers using one image must share a file.
 
 | Phase | Design direction |
 |---|---|
-| 4 | Optional link fields, `component_mapping` reads, imports applied on connection |
 | 5 | A documented annotation category for responsive instructions; frames grouped only when the designer says so |
 | 6 | Reference renders at explicit sizes, compared by the agent with the developer's browser tooling |

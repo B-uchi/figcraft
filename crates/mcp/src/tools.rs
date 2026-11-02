@@ -102,6 +102,8 @@ pub const TOOL_NAMES: &[&str] = &[
     "get_node",
     "design_context",
     "export_assets",
+    "component_mappings",
+    "sync_mappings",
     "select",
     "export",
     "screenshot",
@@ -127,6 +129,8 @@ const DOCUMENT_TOOLS: &[&str] = &[
     "get_node",
     "design_context",
     "export_assets",
+    "component_mappings",
+    "sync_mappings",
     "select",
     "export",
     "screenshot",
@@ -284,6 +288,32 @@ fn tools() -> Vec<Value> {
                     "dryRun": boolean("List the files without writing them")
                 }),
                 &[],
+            ),
+            false,
+        ),
+        tool(
+            "component_mappings",
+            "Component mappings",
+            "Which code component each design component is: its import, code name, source file, a ready snippet, its properties and variants, and which design values need translating. Check this before writing a component: reuse a mapped one, never recreate it. `unmapped` lists those with no code component yet.",
+            obj(
+                json!({
+                    "ids": ids_schema("Layers: the components they are, use or hold (default every component in the file)"),
+                    "unmapped": boolean("Only components without a mapping")
+                }),
+                &[],
+            ),
+            true,
+        ),
+        tool(
+            "sync_mappings",
+            "Sync mappings with the project",
+            "Apply the project's figcraft.connect.json to the open design (`import`, one undo step), or write the design's mappings to it (`export`, keeping what it holds for other designs). Run `import` first when component_mappings shows less than the project should have.",
+            obj(
+                json!({
+                    "direction": {"type": "string", "enum": ["import", "export"], "description": "import: file to design. export: design to file"},
+                    "path": string("The file (default figcraft.connect.json in the project)")
+                }),
+                &["direction"],
             ),
             false,
         ),
@@ -496,6 +526,31 @@ fn export_assets(b: &mut dyn Backend, a: &Map<String, Value>) -> Result<ToolResu
     exec(b, "file.exportAssets", Value::Object(params)).map(|v| ToolResult::json(&v))
 }
 
+/// `codeConnect.list`, saying whether sources are in the connected project.
+fn component_mappings(b: &mut dyn Backend, a: &Map<String, Value>) -> Result<ToolResult, String> {
+    let mut params = a.clone();
+    if b.asset_dir().is_some() {
+        let root = b.project_path(".");
+        params.insert("root".into(), json!(root));
+    }
+    exec(b, "codeConnect.list", Value::Object(params)).map(|v| ToolResult::json(&v))
+}
+
+/// `codeConnect.import` or `.export` with the project's connect file.
+fn sync_mappings(b: &mut dyn Backend, a: &Map<String, Value>) -> Result<ToolResult, String> {
+    let command = match s_arg(a, "direction")? {
+        Some("import") => "codeConnect.import",
+        Some("export") => "codeConnect.export",
+        _ => return Err("`direction`: import or export".into()),
+    };
+    let path = s_arg(a, "path")?.unwrap_or(figcraft_engine::project_connect::CONNECT_FILE);
+    if b.asset_dir().is_none() && !std::path::Path::new(path).is_absolute() {
+        return Err("no project is connected: pass an absolute `path`".into());
+    }
+    let path = b.project_path(path);
+    exec(b, command, json!({"path": path})).map(|v| ToolResult::json(&v))
+}
+
 fn wait_for_changes(b: &mut dyn Backend, a: &Map<String, Value>) -> Result<ToolResult, String> {
     b.call("events.poll", Value::Object(a.clone())).map(|v| ToolResult::json(&v))
 }
@@ -643,6 +698,8 @@ pub fn call_tool(b: &mut dyn Backend, name: &str, args: &Value) -> ToolResult {
         "get_node" => get_node(b, &a),
         "design_context" => design_context(b, &a),
         "export_assets" => export_assets(b, &a),
+        "component_mappings" => component_mappings(b, &a),
+        "sync_mappings" => sync_mappings(b, &a),
         "select" => select(b, &a),
         "export" => export(b, &a),
         "screenshot" => screenshot(b, &a),
