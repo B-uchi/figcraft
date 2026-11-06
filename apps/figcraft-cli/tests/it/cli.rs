@@ -459,3 +459,15 @@ fn connect_status_reports_no_app() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stdout).contains("FigCraft isn't running"));
 }
+
+/// `connect setup --client` sets up the clients asked for, and an unknown one is a usage error.
+#[test]
+fn connect_setup_takes_the_clients_asked_for() {
+    let d = tmp("connect-clients");
+    let out = bin().args(["connect", "setup", "--client", "cursor", "--client", "vscode"]).arg(&d).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(d.join(".cursor/mcp.json").is_file() && d.join(".vscode/mcp.json").is_file());
+    assert!(!d.join(".mcp.json").exists(), "only what was asked for");
+    let bad = bin().args(["connect", "setup", "--client", "notepad"]).arg(&d).output().unwrap();
+    assert_eq!(bad.status.code(), Some(2));
+}

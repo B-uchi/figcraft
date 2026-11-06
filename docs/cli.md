@@ -299,10 +299,12 @@ size and SHA-256. The server's key comes from the address or, better, from the
 lists); it is never printed. The bundle is checked before it is sent and again by the server. See
 [plugins.md](plugins.md#plugin-directories).
 
-### `connect setup [DIR]` and `connect status [DIR]`
+### `connect setup [DIR] [--client ID]…` and `connect status [DIR]`
 
 `setup` prepares a project for [Developer Connect](developer-integration/SETUP.md): it adds FigCraft
-to `.mcp.json` (other servers stay as they are, byte for byte) and makes `figcraft.connect.json`.
+to each client's project configuration (`--client claude-code`, `cursor`, `vscode` or `gemini-cli`;
+default Claude Code and those whose folder the project has; other servers stay as they are, byte for
+byte) and makes `figcraft.connect.json`.
 Running it again changes nothing, and a `.mcp.json` that isn't valid is left alone with an error. It
 gives no access: connect the folder in the app as well. `status` changes nothing: it prints the
 project's configuration and whether a running app has it connected, and exits with 1 otherwise.

@@ -244,7 +244,7 @@ pub struct PublishArgs {
 #[derive(Subcommand)]
 pub enum ConnectCommand {
     Publish(ConnectPublishArgs),
-    Setup(ConnectDirArgs),
+    Setup(ConnectSetupArgs),
     Status(ConnectDirArgs),
 }
 
@@ -258,6 +258,22 @@ pub struct ConnectDirArgs {
     /// The project folder (default: the nearest upwards with a figcraft.connect.json, else here)
     #[arg(value_name = "DIR")]
     pub dir: Option<String>,
+}
+
+/// Set a project up for Developer Connect
+///
+/// Adds FigCraft to each client's project configuration (other servers stay as they are) and makes
+/// figcraft.connect.json; running it again changes nothing. It gives no access: that is the app's
+/// to give, in its Developer Connect window.
+#[derive(Args)]
+pub struct ConnectSetupArgs {
+    /// The project folder (default: the nearest upwards with a figcraft.connect.json, else here)
+    #[arg(value_name = "DIR")]
+    pub dir: Option<String>,
+    /// A client to set up: claude-code, cursor, vscode or gemini-cli (repeatable; default Claude Code
+    /// and those whose folder the project has)
+    #[arg(long, value_name = "ID")]
+    pub client: Vec<String>,
 }
 
 /// Link a design file's components to their code as a figcraft.connect.json says, and save it

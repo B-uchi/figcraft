@@ -11,7 +11,8 @@ for maintainers reviewing the change. The audit behind it is in
   reach them, and `--control` and `--attach` behave as they did.
 - The app owns grants. An agent can't give itself access, because a grant is not a command.
 - Nothing machine-specific goes in the project.
-- Client-neutral: Claude Code is one row in a table of clients, and the engine knows nothing of it.
+- Client-neutral: each client is one row in a table (Claude Code, Cursor, VS Code, Gemini CLI), and
+  the engine's commands know nothing of them.
 
 ## Shape
 

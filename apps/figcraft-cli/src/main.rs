@@ -95,7 +95,7 @@ fn run(cli: Cli) -> CliResult<ExitCode> {
         Command::Mcp(a) => mcp(a.attach.as_deref(), a.project.as_ref().map(|p| p.as_deref()), a.timeout, roots_of(&a.roots)?),
         Command::Plugin { command: PluginCommand::Publish(a) } => publish_plugin(&a.folder, &a.server),
         Command::Connect { command: ConnectCommand::Publish(a) } => confined(&a.roots, || files::connect_publish(&a.file, &a.mappings, a.dry_run)),
-        Command::Connect { command: ConnectCommand::Setup(a) } => connect::setup(a.dir.as_deref()),
+        Command::Connect { command: ConnectCommand::Setup(a) } => connect::setup(a.dir.as_deref(), &a.client),
         Command::Connect { command: ConnectCommand::Status(a) } => connect::status(a.dir.as_deref()),
         Command::Perf(a) => {
             let sizes: Vec<usize> = a.layers.into_iter().map(|n| n.clamp(10, 2_000_000)).collect();
