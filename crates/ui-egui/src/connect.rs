@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use figcraft_engine::file_access::Roots;
-use figcraft_engine::project_connect::{self, CLIENTS, Change};
+use figcraft_engine::project_connect::{self, Change, Client};
 use figcraft_engine::{ConnectedProject, Prefs};
 use serde_json::{Value, json};
 
@@ -196,12 +196,24 @@ impl FigApp {
     /// Set the folder up for the client and connect it (again, for one already connected). What
     /// happened goes in the window's notice.
     pub fn connect_project(&mut self, path: &Path) {
-        let result = self.connect_setup(path);
+        let clients = project_connect::suggested(path);
+        let result = self.connect_setup(path, &clients);
         self.ui.developer_connect_notice = Some(result);
     }
 
-    fn connect_setup(&mut self, path: &Path) -> Result<String, String> {
-        let Some(client) = CLIENTS.first() else { return Err(tr("No client to set up.").to_string()) };
+    /// Set a connected project up for one more client.
+    pub fn connect_client(&mut self, path: &Path, id: &str) {
+        let result = match project_connect::client(id) {
+            Some(client) => self.connect_setup(path, &[client]),
+            None => Err(tr("No client to set up.").to_string()),
+        };
+        self.ui.developer_connect_notice = Some(result);
+    }
+
+    fn connect_setup(&mut self, path: &Path, clients: &[&Client]) -> Result<String, String> {
+        if clients.is_empty() {
+            return Err(tr("No client to set up.").to_string());
+        }
         if self.automation_roots.is_some() {
             return Err(confined_message());
         }
@@ -209,7 +221,16 @@ impl FigApp {
             .services
             .connect_cli()
             .ok_or_else(|| tr("figcraft-cli wasn't found, or is too old for Developer Connect: put the one from this release on PATH, or next to the FigCraft program, and connect again.").to_string())?;
-        let done = self.services.connect_setup(path, client, &entry)?;
+        let mut said = Vec::new();
+        for client in clients {
+            let done = self.services.connect_setup(path, client, &entry)?;
+            said.push(match done.client {
+                Change::Added => trf("Added FigCraft to {file}.", &[("file", &client.config)]),
+                Change::Updated => trf("Updated FigCraft's entry in {file}.", &[("file", &client.config)]),
+                Change::Unchanged => trf("{file} already had FigCraft.", &[("file", &client.config)]),
+            });
+            said.extend(done.warnings);
+        }
         let text = path.to_string_lossy().into_owned();
         let name = project_connect::status(path)
             .settings
@@ -223,12 +244,8 @@ impl FigApp {
         list.enabled = true;
         self.connect_listen();
         self.connect_save();
-        let said = match done.client {
-            Change::Added => trf("Added FigCraft to {file}.", &[("file", &client.config)]),
-            Change::Updated => trf("Updated FigCraft's entry in {file}.", &[("file", &client.config)]),
-            Change::Unchanged => trf("{file} already had FigCraft.", &[("file", &client.config)]),
-        };
-        Ok(std::iter::once(said).chain(done.warnings).collect::<Vec<_>>().join("\n"))
+        said.dedup();
+        Ok(said.join("\n"))
     }
 
     /// Disconnect the project at `path`: its agents lose access at once. Its files stay.

@@ -46,10 +46,56 @@ pub struct Client {
     pub config: &'static str,
     /// The object in that file holding the servers.
     pub servers_key: &'static str,
+    /// The folder the client keeps in a project it is used in (`None`: set up in every project).
+    pub folder: Option<&'static str>,
+    /// Its entries say `"type": "stdio"`.
+    pub typed: bool,
+    /// What it expands to the project folder, passed to `--project`: it may start servers elsewhere.
+    pub project_arg: Option<&'static str>,
 }
 
-/// The clients setup knows.
-pub const CLIENTS: &[Client] = &[Client { id: "claude-code", label: "Claude Code", config: ".mcp.json", servers_key: "mcpServers" }];
+/// The clients setup knows: project configuration files each documents.
+pub const CLIENTS: &[Client] = &[
+    Client { id: "claude-code", label: "Claude Code", config: ".mcp.json", servers_key: "mcpServers", folder: None, typed: false, project_arg: None },
+    Client {
+        id: "cursor",
+        label: "Cursor",
+        config: ".cursor/mcp.json",
+        servers_key: "mcpServers",
+        folder: Some(".cursor"),
+        typed: false,
+        project_arg: Some("${workspaceFolder}"),
+    },
+    Client {
+        id: "vscode",
+        label: "VS Code",
+        config: ".vscode/mcp.json",
+        servers_key: "servers",
+        folder: Some(".vscode"),
+        typed: true,
+        project_arg: Some("${workspaceFolder}"),
+    },
+    Client {
+        id: "gemini-cli",
+        label: "Gemini CLI",
+        config: ".gemini/settings.json",
+        servers_key: "mcpServers",
+        folder: Some(".gemini"),
+        typed: false,
+        project_arg: None,
+    },
+];
+
+/// The client with id `id`.
+pub fn client(id: &str) -> Option<&'static Client> {
+    CLIENTS.iter().find(|c| c.id == id)
+}
+
+/// The clients to set `project` up for by default: those without a folder of their own, and those
+/// whose folder the project has, so a project gets no files for tools nobody there uses.
+pub fn suggested(project: &Path) -> Vec<&'static Client> {
+    CLIENTS.iter().filter(|c| c.folder.is_none_or(|f| file_access::is_dir(project.join(f)))).collect()
+}
 
 /// What a running app leaves for the CLI in [`INSTANCES_FOLDER`], readable by its user only.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,22 +116,37 @@ pub struct McpEntry {
     pub args: Vec<String>,
     /// `command` is a path on this computer, so a file naming it doesn't fit other computers.
     pub machine_specific: bool,
+    /// Written as `"type": "stdio"`.
+    pub typed: bool,
 }
 
 impl McpEntry {
     fn new(command: String, prefix: &[&str], machine_specific: bool) -> Self {
-        Self { command, args: prefix.iter().chain(&MCP_ARGS).map(|a| (*a).to_string()).collect(), machine_specific }
+        Self { command, args: prefix.iter().chain(&MCP_ARGS).map(|a| (*a).to_string()).collect(), machine_specific, typed: false }
+    }
+
+    /// This entry as `client` writes it.
+    pub fn for_client(&self, client: &Client) -> Self {
+        let mut entry = self.clone();
+        entry.args.extend(client.project_arg.map(str::to_string));
+        entry.typed = client.typed;
+        entry
     }
 
     fn json(&self) -> Value {
-        json!({"command": self.command, "args": self.args})
+        let mut v = json!({"command": self.command, "args": self.args});
+        if self.typed {
+            v["type"] = json!("stdio");
+        }
+        v
     }
 
     /// The entry as text, its lines indented by `pad`.
     fn text(&self, pad: &str) -> String {
         let quoted = |s: &str| Value::from(s).to_string();
         let args: Vec<String> = self.args.iter().map(|a| quoted(a)).collect();
-        format!("{{\n{pad}  \"command\": {},\n{pad}  \"args\": [{}]\n{pad}}}", quoted(&self.command), args.join(", "))
+        let typed = if self.typed { format!("\n{pad}  \"type\": \"stdio\",") } else { String::new() };
+        format!("{{{typed}\n{pad}  \"command\": {},\n{pad}  \"args\": [{}]\n{pad}}}", quoted(&self.command), args.join(", "))
     }
 }
 
@@ -284,7 +345,7 @@ pub struct Merged {
 /// Whether server entry `v` runs FigCraft's project server (from any path).
 fn is_project_server(v: &Value) -> bool {
     let args: Vec<&str> = v.get("args").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
-    v.get("command").and_then(Value::as_str).is_some() && args.ends_with(&MCP_ARGS)
+    v.get("command").and_then(Value::as_str).is_some() && args.windows(2).any(|w| w == MCP_ARGS)
 }
 
 /// A new configuration file.
@@ -498,12 +559,16 @@ pub fn setup(project: &Path, client: &Client, entry: &McpEntry, usable: &dyn Fn(
     // Asked before the confinement: the CLI is outside the project.
     let path_var = std::env::var_os("PATH");
     let runs = |c: &str| runnable(c, path_var.as_deref()) && usable(c);
+    let entry = &entry.for_client(client);
     let roots = project_roots(project)?;
     let config = project.join(client.config);
     let existing = file_access::confined(Some(&roots), || read_text(&config))?;
     let merged = merge_config(existing.as_deref(), client, entry, &runs)?;
     file_access::confined(Some(&roots), || {
         if merged.change != Change::Unchanged {
+            if let Some(dir) = config.parent() {
+                file_access::create_dir_all(dir).map_err(|e| e.to_string())?;
+            }
             file_access::write(&config, merged.text.as_bytes()).map_err(|e| e.to_string())?;
         }
         let mut warnings = merged.warnings.clone();

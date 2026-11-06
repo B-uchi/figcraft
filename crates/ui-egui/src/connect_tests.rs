@@ -82,7 +82,12 @@ impl crate::Services for Desk {
         Ok(4242)
     }
     fn connect_cli(&self) -> Option<project_connect::McpEntry> {
-        Some(project_connect::McpEntry { command: "figcraft-cli".into(), args: vec!["mcp".into(), "--project".into()], machine_specific: false })
+        Some(project_connect::McpEntry {
+            command: "figcraft-cli".into(),
+            args: vec!["mcp".into(), "--project".into()],
+            machine_specific: false,
+            typed: false,
+        })
     }
     fn connect_setup(
         &self,

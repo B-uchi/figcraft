@@ -4,8 +4,8 @@ Connect a design open in FigCraft to an AI coding agent working in your local pr
 account and FigCraft uploads nothing. Your agent's model does see what the agent reads, as it sees
 your code, so a cloud-hosted model receives that design data.
 
-Supported MCP clients: Claude Code is set up automatically. Other stdio MCP clients work with the
-manual steps below.
+Set up in one click: Claude Code, Cursor, VS Code and Gemini CLI. Any other MCP client that starts
+local (stdio) servers works with the manual step below.
 
 ## What you need
 
@@ -13,7 +13,7 @@ manual steps below.
 - `figcraft-cli` from the same release as the app. Having it on `PATH` keeps `.mcp.json` free of
   computer-specific paths. An older CLI on `PATH`, without `mcp --project`, is passed over for the
   one beside the app, and `.mcp.json` then names that path.
-- Claude Code in a terminal or in VS Code.
+- An MCP client: Claude Code, Cursor, VS Code (with Copilot agent mode), Gemini CLI, or another.
 
 ## Connect a project
 
@@ -48,7 +48,8 @@ what the design doesn't specify, as described in [the MCP guide](../mcp.md#desig
 
 | In | Change |
 |---|---|
-| `.mcp.json` | Adds or updates the `figcraft` server. Other servers, order and formatting stay as they are |
+| `.mcp.json` (Claude Code) | Adds or updates the `figcraft` server. Other servers, order and formatting stay as they are |
+| `.cursor/mcp.json`, `.vscode/mcp.json`, `.gemini/settings.json` | The same, for each of those clients the project already has a folder for |
 | `figcraft.connect.json` | Created when missing. An existing one keeps its mappings and gains a `project` key |
 | FigCraft's preferences | Remembers the folder on this computer, and turns on listening |
 
@@ -88,7 +89,23 @@ exits with 1 when something is missing.
 
 ## Other MCP clients
 
-Point the client at this command, with the project as its working folder:
+Connecting sets up Claude Code, plus Cursor, VS Code and Gemini CLI when the project already has their
+folder (`.cursor/`, `.vscode/`, `.gemini/`), so a project gets no files for tools nobody uses. Add
+another from the project's **Configured for** row in the window, or with
+`figcraft-cli connect setup --client cursor` (`claude-code`, `cursor`, `vscode`, `gemini-cli`;
+repeatable).
+
+| Client | File | Notes |
+|---|---|---|
+| Claude Code | `.mcp.json` | Run `claude` in the project and approve the server |
+| Cursor | `.cursor/mcp.json` | Enable `figcraft` under Settings ▸ MCP |
+| VS Code | `.vscode/mcp.json` | Uses `servers` and `"type": "stdio"`; start it from the file or the MCP view |
+| Gemini CLI | `.gemini/settings.json` | Other settings in the file stay as they are |
+
+Cursor and VS Code get `${workspaceFolder}` after `--project`, which they expand to the project, since
+they may start servers from another folder.
+
+For any other client, point it at this command, with the project as its working folder:
 
 ```sh
 figcraft-cli mcp --project

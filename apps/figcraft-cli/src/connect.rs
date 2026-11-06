@@ -36,20 +36,32 @@ fn entry() -> CliResult<McpEntry> {
     .ok_or_else(|| CliError::Failed("can't tell how to start figcraft-cli here: put it on PATH".into()))
 }
 
-pub fn setup(dir: Option<&str>) -> CliResult<ExitCode> {
+pub fn setup(dir: Option<&str>, ids: &[String]) -> CliResult<ExitCode> {
     let project = project_dir(dir)?;
-    let client = CLIENTS.first().ok_or_else(|| CliError::Failed("no client to set up".into()))?;
-    let done = project_connect::setup(&project, client, &entry()?, &project_connect::understands_project).map_err(CliError::Failed)?;
-    let said = match done.client {
-        Change::Added => "added FigCraft",
-        Change::Updated => "updated FigCraft's entry",
-        Change::Unchanged => "already has FigCraft",
+    let clients = if ids.is_empty() {
+        project_connect::suggested(&project)
+    } else {
+        let known = || CLIENTS.iter().map(|c| c.id).collect::<Vec<_>>().join(", ");
+        ids.iter()
+            .map(|id| project_connect::client(id).ok_or_else(|| CliError::Usage(format!("unknown client {id}: {}", known()))))
+            .collect::<CliResult<_>>()?
     };
-    println!("{}: {said}", client.config);
-    println!("{}: {}", project_connect::CONNECT_FILE, if done.connect_file { "written" } else { "unchanged" });
-    for w in &done.warnings {
-        eprintln!("warning: {w}");
+    let entry = entry()?;
+    let mut connect_file = false;
+    for client in clients {
+        let done = project_connect::setup(&project, client, &entry, &project_connect::understands_project).map_err(CliError::Failed)?;
+        let said = match done.client {
+            Change::Added => "added FigCraft",
+            Change::Updated => "updated FigCraft's entry",
+            Change::Unchanged => "already has FigCraft",
+        };
+        println!("{}: {said}", client.config);
+        connect_file |= done.connect_file;
+        for w in &done.warnings {
+            eprintln!("warning: {w}");
+        }
     }
+    println!("{}: {}", project_connect::CONNECT_FILE, if connect_file { "written" } else { "unchanged" });
     println!("Next: connect {} in FigCraft (Developer Connect, under the ? button); setup alone gives no access.", project.display());
     Ok(ExitCode::SUCCESS)
 }

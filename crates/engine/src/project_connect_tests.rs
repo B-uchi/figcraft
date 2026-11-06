@@ -8,7 +8,7 @@ use crate::file_access::{self, Access};
 use crate::project_connect::*;
 
 fn entry() -> McpEntry {
-    McpEntry { command: "figcraft-cli".into(), args: vec!["mcp".into(), "--project".into()], machine_specific: false }
+    McpEntry { command: "figcraft-cli".into(), args: vec!["mcp".into(), "--project".into()], machine_specific: false, typed: false }
 }
 
 fn client() -> &'static Client {
@@ -319,4 +319,54 @@ fn instance_files_round_trip() {
     let i = Instance { version: DISCOVERY_VERSION, pid: 1, port: 2, token: "t".into(), app_version: "0".into() };
     let text = serde_json::to_string(&i).unwrap();
     assert_eq!(serde_json::from_str::<Instance>(&text).unwrap(), i);
+}
+
+fn named(id: &str) -> &'static Client {
+    crate::project_connect::client(id).unwrap()
+}
+
+#[test]
+fn each_client_gets_its_own_file_key_and_arguments() {
+    let dir = project("clients");
+    for c in CLIENTS {
+        setup(&dir, c, &entry(), &|_| true).unwrap();
+    }
+    let read = |f: &str| serde_json::from_str::<Value>(&std::fs::read_to_string(dir.join(f)).unwrap()).unwrap();
+    assert_eq!(read(".mcp.json")["mcpServers"]["figcraft"]["args"], json!(["mcp", "--project"]));
+    assert_eq!(read(".cursor/mcp.json")["mcpServers"]["figcraft"]["args"], json!(["mcp", "--project", "${workspaceFolder}"]));
+    let vscode = &read(".vscode/mcp.json")["servers"]["figcraft"];
+    assert_eq!((vscode["type"].as_str(), vscode["command"].as_str()), (Some("stdio"), Some("figcraft-cli")));
+    assert_eq!(vscode["args"], json!(["mcp", "--project", "${workspaceFolder}"]));
+    assert_eq!(read(".gemini/settings.json")["mcpServers"]["figcraft"]["args"], json!(["mcp", "--project"]));
+    assert_eq!(status(&dir).clients, ["Claude Code", "Cursor", "VS Code", "Gemini CLI"]);
+    for c in CLIENTS {
+        assert_eq!(setup(&dir, c, &entry(), &|_| true).unwrap().client, Change::Unchanged, "{}", c.id);
+    }
+}
+
+#[test]
+fn a_clients_other_settings_stay() {
+    let dir = project("gemini-settings");
+    std::fs::create_dir_all(dir.join(".gemini")).unwrap();
+    let before = "{\n  \"theme\": \"Dracula\",\n  \"mcpServers\": {\n    \"git\": {\"command\": \"git-mcp\"}\n  }\n}\n";
+    std::fs::write(dir.join(".gemini/settings.json"), before).unwrap();
+    setup(&dir, named("gemini-cli"), &entry(), &|_| true).unwrap();
+    let after = std::fs::read_to_string(dir.join(".gemini/settings.json")).unwrap();
+    assert!(after.starts_with("{\n  \"theme\": \"Dracula\",\n  \"mcpServers\": {\n    \"git\": {\"command\": \"git-mcp\"},"), "{after}");
+}
+
+#[test]
+fn only_clients_a_project_uses_are_suggested() {
+    let dir = project("suggest");
+    let ids = |d: &Path| suggested(d).iter().map(|c| c.id).collect::<Vec<_>>();
+    assert_eq!(ids(&dir), ["claude-code"]);
+    std::fs::create_dir_all(dir.join(".vscode")).unwrap();
+    std::fs::create_dir_all(dir.join(".cursor")).unwrap();
+    assert_eq!(ids(&dir), ["claude-code", "cursor", "vscode"]);
+}
+
+#[test]
+fn an_entry_for_another_folder_still_counts_as_ours() {
+    let text = r#"{"servers": {"figcraft": {"type": "stdio", "command": "figcraft-cli", "args": ["mcp", "--project", "${workspaceFolder}"]}}}"#;
+    assert_eq!(merge_config(Some(text), named("vscode"), &entry().for_client(named("vscode")), &|_| true).unwrap().change, Change::Unchanged);
 }

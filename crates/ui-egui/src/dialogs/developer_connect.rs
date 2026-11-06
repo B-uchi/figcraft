@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use egui::{Context, Id, RichText, Ui};
 use figcraft_engine::ConnectedProject;
-use figcraft_engine::project_connect::{self, CLIENTS, Status};
+use figcraft_engine::project_connect::{self, CLIENTS};
 use serde_json::json;
 
 use crate::FigApp;
@@ -21,6 +21,8 @@ struct Clicks {
     enabled: Option<bool>,
     add: bool,
     reconnect: Option<PathBuf>,
+    /// Set a project up for one more client.
+    client: Option<(PathBuf, &'static str)>,
     remove: Option<String>,
     asset_dir: Option<(PathBuf, String)>,
     /// Apply the project's mappings to the open design (or write them back).
@@ -60,6 +62,9 @@ fn act(app: &mut FigApp, clicks: Clicks) {
     }
     if let Some(path) = clicks.reconnect {
         app.connect_project(&path);
+    }
+    if let Some((path, id)) = clicks.client {
+        app.connect_client(&path, id);
     }
     if let Some(path) = clicks.remove {
         app.connect_remove(&path);
@@ -180,11 +185,6 @@ fn status_rows(app: &FigApp, ui: &mut Ui, t: &Tokens) {
     fact(ui, t, tr("Agents will see"), &document);
 }
 
-/// What a project's row shows: a client configured, or what's wrong.
-fn clients_line(status: &Status) -> String {
-    if status.clients.is_empty() { tr("Not set up").to_string() } else { status.clients.join(", ") }
-}
-
 fn project_row(app: &FigApp, ui: &mut Ui, t: &Tokens, p: &ConnectedProject, clicks: &mut Clicks) {
     let path = Path::new(&p.path);
     let status = project_connect::status(path);
@@ -205,7 +205,17 @@ fn project_row(app: &FigApp, ui: &mut Ui, t: &Tokens, p: &ConnectedProject, clic
     if let Some(why) = &status.problem {
         ui.label(RichText::new(why).color(t.danger).font(regular(11.0)));
     }
-    fact(ui, t, tr("Configured for"), &clients_line(&status));
+    ui.horizontal(|ui| {
+        fact_label(ui, t, tr("Configured for"));
+        ui.spacing_mut().item_spacing.x = 4.0;
+        for c in CLIENTS {
+            let on = status.clients.contains(&c.label);
+            let tip = if on { trf("{file} has FigCraft", &[("file", &c.config)]) } else { trf("Add FigCraft to {file}", &[("file", &c.config)]) };
+            if widgets::button(ui, c.label, on, status.problem.is_none()).on_hover_text(tip).clicked() && !on {
+                clicks.client = Some((path.to_path_buf(), c.id));
+            }
+        }
+    });
     let agents = if linked.is_empty() { tr("None right now").to_string() } else { linked.join(", ") };
     fact(ui, t, tr("Agents connected"), &agents);
     ui.horizontal(|ui| {
@@ -237,6 +247,9 @@ fn project_row(app: &FigApp, ui: &mut Ui, t: &Tokens, p: &ConnectedProject, clic
                 clicks.copy = Some(command.clone());
             }
         });
+    }
+    if linked.is_empty() && status.clients.iter().any(|c| *c != "Claude Code") {
+        note(ui, t, tr("In another editor, open the project folder and turn on the figcraft server in its MCP settings."));
     }
 }
 
